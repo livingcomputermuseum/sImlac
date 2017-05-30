@@ -1,0 +1,169 @@
+﻿The following is a brief synopsis of the software available in Tom Uban's archive at:  http://www.ubanproductions.com/imlac_sw.html.
+
+Filename                                Loader  Start   Description / Notes
+---------------------------------------------------------------------------------------------------------------------------------
+2locFltPtMathSrc.ptp                    N/A     N/A     Assembly code, presumably floating point math routines.
+
+40tp_blockPunch1.0.ptp                  PTR     Var     Block Punch utility (see blockpunch.pdf for usage).
+
+40tp_debugger5.0.ptp                    PTR     Auto    Debugger utility (see debugger.pdf)
+
+40tp_eightLevelTest2.1AlphaGraphic.ptp  PTR     Unk     Presumably a test for the 8-level DT stack, dttest.pdf is likely the
+                                                        documentation.
+
+40tp_lightPen1.0.ptp                    PTR     Auto    Basic LightPen test (unknown usage)
+
+40tp_longVectorTest.ptp                 PTR     Auto    Long Vector (LVH) test utility (see longvectest.pdf for usage).
+                                                        (Ensure bit 0 of DS is set to run)
+
+40tp_loSpeedAssm601.ptp                 PTR     100     Two-pass Imlac assembler (see lowspeedassembler.pdf for usage).
+
+40tp_simpleDisplay.ptp                  PTR     100     Prints "HELLO" in the center of the screen.  This looks to be identical
+                                                        to the sample program listed on pages VI-2.18 through VI-2.21 of the
+                                                        PDS-1 Technical Manual (PDS-1_TechnicalMan.pdf).  Ensure Bit 0 of DS is
+                                                        set when running.
+
+40tp_spacewar2.5.ptp                    PTR     100     Extraordinarly crude version of "Space War!"  Looks to be a work in
+                                                        progress.
+
+40tp_symFormII_1.2C1_8kg.ptp            PTR     100     Some manner of symbol editor.  Appears to allow creation of characters
+                                                        and symbols; arrow keys move the cursor, and "B" draws a vector from
+                                                        the last point to the current cursor location.
+
+40tp_tse-4_supGrid.ptp                  PTR     100     Appears to be a basic visual Text Editor.  Ensure Bit 0 of DS is set
+                                                        when running.
+
+40tp_ttyio.ptp                          PTR     5400    TIO (Teletype Input Output).  Allows using a teletype to debug the system.
+                                                        See tio.pdf and tiosrc.pdf for usage and source code.
+
+40tp_upperMemTest1.ptp                  PTR     Auto    Upper Memory Test 1.  See memtest.pdf for usage.
+
+binldr.i                                N/A     N/A     Assembly code for Binary TTY 2nd stage "block" loader.
+binldr.list                             N/A     N/A     Assembler list for above
+    
+blinkg.txt                              STTY    Auto    Unknown; displays blinking cursor at upper left and appears to use the
+                                                        TTY inteface.  Ensure Bit 0 of DS is set when running.
+
+check (long)                            TTY     Auto    Long-vector version of Checkers.  See checkers.pdf for usage.  Ensure
+                                                        bit 0 of DS is set when running.
+
+check (short)                           TTY     100     Short Vector version of Checkers.  See check.doc for usage.
+
+clock.txt                               STTY    Auto    Displays an analog clock.
+
+core16k                                 TTY     Auto    Displays an octal dump of core onscreen.  Arrow keys scroll through
+                                                        memory, an address can be typed in at the bottom left of the screen,
+                                                        hitting space wil jump to that address.  Unsure if memory can be edited.
+
+coreop                                  TTY     Auto    Displays a basic disassembly of core contents.  Arrow keys scroll, an
+                                                        address can be typed in at the bottom left, space will jump to that 
+                                                        address.
+
+crash                                   TTY     Auto    Unknown.  (Perhaps a variant of crashmit.txt below.  Does not currently 
+                                                        run.)
+
+crashmit.txt                            STTY    Auto    Simple "Lunar Lander" clone; currently runs extremely fast making it
+                                                        unplayable.  Arrow keys control thrust.
+
+cubic.txt                               STTY    Auto    Unknown.
+
+debug                                   TTY     Auto    Debugger.  Does not currently work correctly; see debugger.pdf for usage.
+
+debug2.txt                              STTY    Auto    Debugger, appears to work.  See debugger.pdf for usage.
+
+dts                                     TTY     Auto    Unknown, possibly a terminal emulator.  Displays a cursor at the top left.
+
+fortranARDSsrc.ptp                      N/A     N/A     FORTRAN source.  Unknown purpose.
+
+imquad                                  TTY     Auto    "Space War!" clone.  Data Switches are used as controls (unsure of exact
+                                                        mapping).  DS 0 must be set.  CR restarts.
+
+integerMath.ptp                         N/A     N/A     Assembly code, presumably for integer math routines.
+
+keybrd.txt                              STTY    Auto    "Keyboard Diagnostic 1."  Displays onscreen keyboard, keys borders light
+                                                        up as keys are pressed.  Row of numbers at the top shows repeat count,
+                                                        scancode, and third number of unknown purpose (appears to always be 0).
+
+lemwar                                  TTY     Auto    "Lunar Lander" clone, appears to be unfinished.  Arrow keys control 
+                                                        thrust, CR restarts.
+
+life                                    STTY    Auto    Conway's "Game Of Life".  Set DS bit 0 to run.  Arrow keys move cursor
+                                                        around grid.  "C" toggles a cell on or off, "Q" resets the grid, "R"
+                                                        runs a single step, "G" runs continuously, and "H" halts the run.
+
+lowerMemTest1.ptp                       PTR     Auto    Lower memory test, see memtest.pdf for usage.
+
+maze                                    TTY     Auto    Generates mazes (hit CR when the grid appears to start) and places a mouse
+                                                        at one side and a cheese wedge at the other; use the arrow keys to move
+                                                        the mouse through the maze.
+
+munch                                   TTY     Auto    The famous "Munching Squares" demo.  Change the DS switch settings to 
+                                                        generate different patterns.  Trippy.
+
+newapollo                               STTY    Auto    Another "Lunar Lander" clone.  Use arrow keys to adjust thrust, CR to
+                                                        restart.  Ensure DS bit 0 is set.
+
+nspwar                                  TTY     Auto    Another space war clone; unsure of the controls -- all I can do at the moment
+                                                        is make my ship explode.  (May use data switches -- DS 0 must be set to run.)
+
+pinball                                 TTY     Auto    Pinball game.  Seems to want a Digitizer tablet in order to actually play.
+
+pixlib.txt                              STTY    Unk     Unknown.  Given the name, not likely to be a standalone program.
+
+pong.txt                                STTY    Auto    The classic paddle game.
+
+rom3                                    TTY     Unk     Based on the .i file, looks to be some manner of TTY loader.
+rom3.i
+
+snarf                                   STTY    Auto    Fun game -- hunt the moving circles. See snarf.pdf or snarf.doc for usage details.
+snarf2.i                                                Patch for above, unknown what it fixes / changes.
+
+snarf (short)                           TTY     100     Presumably a short-vector version of the above.
+
+spwar                                   TTY     100     Looks to be the same lame "Space War!" clone as 40tp_spacewar2.5.ptp.
+
+ssv.txt                                 STTY    Auto    Describes itself as "SSV.22."  This is a terminal emulator / debugger used at MIT
+                                                        to talk with their ITS systems.
+
+sts                                     TTY     100     Some manner of text editor.  Wants a digitizer tablet. Set DS bit 0.
+
+stsold                                  TTY     Auto    Presumably an older version of sts.  Runs but behaves oddly.
+
+sts-short                               TTY     Auto    Very similar to stsold.
+
+t_d8level                               TTY     Auto    Likely the same as 40tp_eightLevelTest2.1AlphaGraphic.ptp.
+
+t_longvec                               TTY     100     Same as 40tp_longVectorTest.ptp.
+
+t_lowmem                                TTY     Auto    Same as lowerMemtest1.ptp.
+
+t_upmem                                 TTY     Auto    Same as 40tp_upperMemTest1.ptp.
+
+tank (long)                             TTY     Auto    Tank game, long vector version; see tank.doc for details.
+
+tank2.i                                 N/A     N/A     Assembly language patch for one of these here tank games.  Unknown 
+                                                        purpose.
+
+tank (short)                            TTY     Auto    Tank game, short vector version.  See tank.doc for details.
+
+teksim                                  TTY     Auto    Terminal emulator for the venerable Tektronix 4010.
+
+tis                                     TTY     Auto    Another terminal emulator.
+
+tse4                                    TTY     Auto    Looks to be the same as 40tp_tse-4_supGrid.ptp.
+
+unlabeled.ptp                           PTR     Auto    Possibly a duplicate of one of the debuggers.
+
+war                                     STTY    Auto    An actually good clone of "Space War!".  Very similar in appearance to 
+                                                        the PDP versions.  Supports three players, and is self-documenting!
+
+wumpus                                  TTY     Auto    "Hunt The Wumpus."  Unsure how to play, but it has nifty graphics.
+
+xpw                                     TTY     Auto    Unknown.
+
+yogi                                    TTY     Auto    Some manner of editor.  See yogi2.doc and yogireq.doc for details.
+
+
+
+                                                        
+

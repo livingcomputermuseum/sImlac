@@ -1,0 +1,135 @@
+﻿; PTR Bootstrap, stage one loader
+; taken from "loading.pdf" and commented up
+
+; start at 40.
+; this routine loads the 2nd stage loader (76 words) from the paper tape reader
+; into memory starting at 37700
+000040\060077	LAC 77			; AC = 37677 - starting address-1 of second-stage loader
+000041\020010	DAC 10			; put into indirect index register 10
+000042\104076	LWC	76			; AC = -76
+000043\020020	DAC 20			; put into location 20; this is the count of words left to read
+000044\001061	HON				; turn the tape reader on
+
+								; Start of loop skipping over tape leader; we read until an 000002 is read and then commence
+								; loading data into memory.  This "2" is part of the data loaded into memory (i.e. it's the high byte of the first word)
+								; but is also used to signal the start of the loader.  (So if you write a custom 2nd stage loader, I guess it must start with 2)
+								;
+000045\100011	CAL				; Clear AC and the Link register, since read bytes from the reader are OR'd into AC
+000046\002400	HSF				; If the reader has data available, continue to 50
+000047\010046	JMP 46			; otherwise go back to 46 and keep waiting.
+000050\001051	HRB				; Reader has data -- read it
+000051\074075	SAM 75			; Compare AC with contents of address 75 (2), continue to 53 if equal.
+000052\010045	JMP 45			; Otherwise go back to 45 and keep reading.
+
+								; Start of loop reading in actual loader data.
+								;
+000053\002400	HSF				; If the reader has data ready, continue to 55
+000054\010053	JMP 53			; Otherwise go back to 53 and keep waiting.
+000055\001051	HRB				; Read the data into AC
+000056\003003	RAL 3
+000057\003003	RAL 3
+000060\003002	RAL 2			; Shift left by 8 bits (upper portion of word)
+000061\102400	HSN				; if reader has no data, continue to 63
+000062\010061	JMP 61			; otherwise go to 61 and wait. (We're waiting for the next word to become available)
+000063\002400	HSF				; If the reader has data, continue to 65
+000064\010063	JMP 63			; otherwise go back to 63 and try again...
+000065\001051	HRB				; Read the data into the AC; this is OR'd with the upper 8 bits resulting in a full 16 bit word.
+000066\120010	I DAC 10		; Write A to the address in indirect index register 10 and increment address.
+000067\102400	HSN				; again, wait until the reader has no data
+000070\010067	JMP 67			; loop until we have no data.
+000071\100011	CAL				; Clear AC & Link
+000072\030020	ISZ 20			; Increment our word counter.  When it reaches zero, skip to 74.
+000073\010053	JMP 53			; go back to 53 to read the next word.
+
+								; done:
+000074\110076	I JMP 76		; jump to indirect address at 76 (037700) to begin executing the second-stage loader.
+000075\000002
+000076\037700
+000077\037677
+
+
+; PTR Bootstrap, stage two loader
+; based on disassembly from emulator
+								; entry point from end of first stage loader
+007700\001032	RCF				; Clear TTY status (unsure exactly why as of yet-- the "binldr.list" source has the same first instruction and comments as "IOT MUST BE FIRST TO UNLOCK ROM")
+007701\013740	JMP 007740		; jump to 7740 (really!)
+
+007702\023677	DAC 007677		; clear checksum byte
+007703\037760	JMS 007760		; jump to subroutine at 7760 to read a byte from the tape into AC
+007704\102001	ASN				; if AC is non-zero, skip to 7706
+007705\013703	JMP 007703		; Otherwise read next byte...
+
+007706\100006	CMA, IAC		; we have a non-zero byte.  Complement it and increment it; this gives us the two's complement negative value of AC
+007707\023777	DAC 007777		; deposit AC at 7777 (count?)
+007710\037750	JMS 007750		; jump to subroutine at 7750 to read 16-bit word into AC
+
+007711\023776	DAC 007776		; deposit AC at 7776 (loading address?)
+007712\077730	SAM 007730		; if AC is 17777 then it's an error of some sort, and we halt.
+007713\013715	JMP 007715		; otherwise continue at 7715
+
+007714\000000	HLT				; error of some sort while reading
+
+007715\037750	JMS 007750		; read next word into AC
+007716\123776	I DAC 007776	; deposit word into location pointed to by 7776
+007717\037731	JMS 007731		; jump to subroutine at 7731
+
+007720\033776	ISZ 007776		; move to next address
+007721\033777	ISZ 007777		; increment word counter, if we reach zero (remember, this is a negative value) then we are done
+007722\013715	JMP 007715		; otherwise read another word
+
+007723\037750	JMS 007750		; read next word - checksum.
+007724\073677	SUB 007677		; subtract checksum value from value on tape
+007725\102001	ASN				; if nonzero, we had an error, halt.
+007726\013746	JMP 007746		; continue at 7746
+007727\000000	HLT				; halt on error
+
+007730\177777	I SAM 007777	; 17777 is a special value of some sort
+
+								; subroutine - checksum?
+007731\017720					; ret address is stored here
+007732\100010	CML				; flip the link bit
+007733\067677	ADD 007677		
+007734\002004	LSZ
+007735\100004	COA
+007736\023677	DAC 007677
+007737\113731	I JMP 007731
+
+								;
+007740\001061	HON				; Turn the reader on
+007741\063774	LAC 007774		; AC is loaded with contents of 7774 (013770, which is also a JMP instruction)
+007742\023761	DAC 007761		; store at 7761, self modifying code?
+007743\005032	LAW 001032		; AC = 1032	(IOT instruction, RCF)
+007744\177775	I SAM 007775	; compare AC with data at address 44 (ROM instruction HON for PTR loader), skip to 7746 if equal
+007745\023761	DAC 007761		; store AC at 7761 ?  again?  looks like it restores the original contents to the RCF instruction.
+007746\100011	CAL				; Clear AC and Link
+007747\013702	JMP 007702		; Continue at 7702
+
+								; subroutine - reads 2 bytes from tape into a 16-bit word in AC.
+007750\017711					; return address is stored here
+007751\100011	CAL				; Clear AC and link
+007752\037760	JMS 007760		; read next byte from tape
+007753\003003	RAL 3			
+007754\003003	RAL 3
+007755\003002	RAL 2			; shift left by 8 bits
+007756\037760	JMS 007760		; read next byte, this is OR'd into AC 
+007757\113750	I JMP 007750	; return
+
+								; subroutine - reads byte from tape
+007760\017757					; return address is stored here
+007761\001032	RCF				; is overwritten by instruction at 7742
+007762\102400	HSN				; if reader has no data, continue to 7764
+007763\013762	JMP 007762		; reader has data, go back to 7762 until it does not.
+007764\002400	HSF				; if reader has data, continue to 7766
+007765\013764	JMP 007764		; reader has no data, go back to 7764 until it does.
+007766\001051	HRB				; we have a byte of data!  read it.
+007767\113760	I JMP 007760	; return from the subroutine
+
+								; when does this code get reached?
+007770\002040	RSF
+007771\013770	JMP 007770
+007772\001033	RRC
+007773\113760	I JMP 007760
+007774\013770	JMP 007770
+007775\000044	HLT
+007776\000000	HLT				; appears to be the current address tape data gets written to
+007777\000000	HLT				; count of words to be read from tape
