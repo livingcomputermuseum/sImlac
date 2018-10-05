@@ -124,7 +124,7 @@ namespace imlac
 
         static void PrintHerald()
         {
-            Console.WriteLine("sImlac v0.1.  (c) 2016, 2017 Living Computers: Museum+Labs");
+            Console.WriteLine("sImlac v0.2.  (c) 2016-2018 Living Computers: Museum+Labs");
             Console.WriteLine();
         }
 

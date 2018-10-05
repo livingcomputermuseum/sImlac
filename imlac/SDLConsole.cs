@@ -22,7 +22,8 @@ using System.Drawing;
 using System.Threading;
 
 using imlac.IO;
-using SdlDotNet.Graphics;
+using SDL2;
+using static SDL2.SDL;
 
 namespace imlac
 {
@@ -31,461 +32,8 @@ namespace imlac
         Toggle,     // Pressing a key toggles the switch (from 0 to 1 or from 1 to 0)
         Momentary,  // Holding a key down indicates a "1", release indicates "0"
         MomentaryInverted,  // Same as above, but inverted
-    }
+    }   
 
-    public enum VKeys
-    {
-        // Keys that map to Imlac keyboard keys
-        Shift = 0x10,
-        Ctrl = 0x11,
-        Alt = 0x12,
-
-        End = 0x23,
-        DownArrow = 0x28,
-        RightArrow = 0x27,
-        UpArrow = 0x26,
-        LeftArrow = 0x25,
-        Tab = 0x9,
-        Return = 0xd,
-        PageUp = 0x21,
-        PageDown = 0x22,
-        Home = 0x24,
-        Pause = 0x91,
-        Escape = 0x1b,
-        Space = 0x20,
-
-        Comma = 0xbc,
-        Plus = 0xbb,
-        Period = 0xbe,
-        QuestionMark = 0xbf,
-        Zero = 0x30,
-        One = 0x31,
-        Two = 0x32,
-        Three = 0x33,
-        Four = 0x34,
-        Five = 0x35,
-        Six = 0x36,
-        Seven = 0x37,
-        Eight = 0x38,
-        Nine = 0x39,
-        Minus = 0xbd,
-        Semicolon = 0xba,
-
-        Keypad0 = 0x60,
-        Keypad2 = 0x62,
-        Keypad4 = 0x64,
-        Keypad5 = 0x65,
-        Keypad6 = 0x66,
-        DoubleQuote = 0xde,
-
-        A = 0x41,
-        B = 0x42,
-        C = 0x43,
-        D = 0x44,
-        E = 0x45,
-        F = 0x46,
-        G = 0x47,
-        H = 0x48,
-        I = 0x49,
-        J = 0x4a,
-        K = 0x4b,
-        L = 0x4c,
-        M = 0x4d,
-        N = 0x4e,
-        O = 0x4f,
-        P = 0x50,
-        Q = 0x51,
-        R = 0x52,
-        S = 0x53,
-        T = 0x54,
-        U = 0x55,
-        V = 0x56,
-        W = 0x57,
-        X = 0x58,
-        Y = 0x59,
-        Z = 0x5a,
-
-        Delete = 0x8,
-
-        // Additional keys, not used by the Imlac but available
-        // for data switch mapping.
-        F1 = 0x70,
-        F2 = 0x71,
-        F3 = 0x72,
-        F4 = 0x73,
-        F5 = 0x74,
-        F6 = 0x75,
-        F7 = 0x76,
-        F8 = 0x77,
-        F9 = 0x78,
-        F10 = 0x79,
-        F11 = 0x7a,
-        F12 = 0x7b,
-
-        Keypad1 = 0x61,
-        Keypad3 = 0x63,
-        Keypad7 = 0x67,
-        Keypad8 = 0x68,
-        Keypad9 = 0x69,
-
-
-        // hack to toggle fullscreen.
-        Insert = 0x2d,
-
-        // Special values for data switch mappings
-        None0 = 0,      // No key mapped to data switch, DS for this bit is set to 0
-        None1 = 1,      // Ditto, but for the value 1
-    }
-
-    /// <summary>
-    /// This is used to filter keyboard messages from the App's message loop.
-    /// This is necessary because the "Video" object that SDL provides appears
-    /// to eat certain keystrokes and since I have no means to control it
-    /// (and I'm not really all that interested in compiling my own version)
-    /// this is the only alternative.
-    /// 
-    /// This class captures keystrokes for keys the emulator is interested in
-    /// and fires an event containing the keycode.
-    /// These keyboard messages are always passed on to the app.
-    /// </summary>
-    public class KeyboardFilter : IMessageFilter
-    {
-        public KeyboardFilter()
-        {
-            _keyModifiers = ImlacKeyModifiers.None;
-            _keyLatched = false;
-            _dataSwitches = 0x0; // ffff;
-            _latchedKeyCode = ImlacKey.Invalid;
-            _dataSwitchMappingMode = DataSwitchMappingMode.Toggle;
-
-            _keyLatchedLock = new ReaderWriterLockSlim();
-        }
-
-        static KeyboardFilter()
-        {
-            BuildKeyMappings();
-        }        
-
-        public event EventHandler FullScreenToggle; 
-
-        // TODO: should ensure consistency (threading)
-
-        public ImlacKey LatchedKey
-        {
-            get { return _latchedKeyCode; }
-        }
-
-        public ImlacKeyModifiers Modifiers
-        {
-            get { return _keyModifiers; }
-        }
-
-        public bool KeyLatched
-        {
-            get
-            {
-                _keyLatchedLock.EnterReadLock();
-                bool latched = _keyLatched;
-                _keyLatchedLock.ExitReadLock();
-                return latched;
-            }
-            set
-            {
-                _keyLatchedLock.EnterWriteLock();
-                _keyLatched = value;
-                _keyLatchedLock.ExitWriteLock();
-            }
-        }
-
-        public ushort DataSwitches
-        {
-            get { return (ushort)_dataSwitches; }
-        }
-
-        public DataSwitchMappingMode DataSwitchMode
-        {
-            get { return _dataSwitchMappingMode;  }
-            set { _dataSwitchMappingMode = value; }
-        }
-
-        public void MapDataSwitch(uint switchNumber, VKeys key)
-        {
-            _dataSwitchMappings[switchNumber] = key;
-        }
-
-        public VKeys GetDataSwitchMapping(uint switchNumber)
-        {
-            return _dataSwitchMappings[switchNumber];
-        }
-
-        public bool PreFilterMessage(ref Message m)
-        {
-            bool ret = false;
-
-            switch (m.Msg)
-            {
-                case WM_SYSKEYDOWN:
-                case WM_SOMETHINGDOWN:
-                    //
-                    // If this is a modifier key (Alt, Shift, Ctrl) then we track it separately
-                    // (it is not tracked as a key)
-                    //                    
-                    switch ((VKeys)m.WParam.ToInt32())
-                    {
-                        case VKeys.Shift:
-                            _keyModifiers |= ImlacKeyModifiers.Shift;
-                            break;
-
-                        case VKeys.Ctrl:
-                            _keyModifiers |= ImlacKeyModifiers.Ctrl;
-                            break;
-
-                        case VKeys.Alt:
-                            _keyModifiers |= ImlacKeyModifiers.Rept;
-                            break;
-
-                        default:
-
-                            UpdateDataSwitches((VKeys)m.WParam.ToInt32(), true /* key down */);
-
-                            //Console.WriteLine("{0:x}", m.WParam.ToInt32());
-
-                            if ((VKeys)m.WParam.ToInt32() == VKeys.Insert)
-                            {
-                                if (FullScreenToggle != null)
-                                {
-                                    FullScreenToggle(this, null);
-                                }
-                            }
-
-                            _keyLatchedLock.EnterWriteLock();
-
-                            _keyLatched = true;
-                            _latchedKeyCode = TranslateKeyCode((VKeys)m.WParam.ToInt32());
-
-                            _keyLatchedLock.ExitWriteLock();
-                            break;
-                    }
-                    break;
-
-                case WM_SYSKEYUP:
-                case WM_SOMETHINGUP:
-                    //
-                    // We only track keyboard modifiers and data switch toggles here.
-                    //
-                    switch ((VKeys)m.WParam.ToInt32())
-                    {
-                        case VKeys.Shift:
-                            _keyModifiers &= (~ImlacKeyModifiers.Shift);
-                            break;
-
-                        case VKeys.Ctrl:
-                            _keyModifiers &= (~ImlacKeyModifiers.Ctrl);
-                            break;
-
-                        case VKeys.Alt:
-                            _keyModifiers &= (~ImlacKeyModifiers.Rept);
-                            break;
-
-                        default:
-                            UpdateDataSwitches((VKeys)m.WParam.ToInt32(), false /* key up */);
-
-                            _latchedKeyCode = ImlacKey.Invalid;
-                            break;
-                    }
-                    break;
-
-                default:
-                    break;
-            }
-
-            return ret;
-        }
-
-        private ImlacKey TranslateKeyCode(VKeys virtualKey)
-        {
-            if (_keyMappings.ContainsKey(virtualKey))
-            {
-                return _keyMappings[virtualKey];
-            }
-            else
-            {
-                return ImlacKey.Invalid;
-            }
-        }
-
-
-        private void UpdateDataSwitches(VKeys virtualKey, bool keyDown)
-        {
-            //
-            // If this is a key mapped to a front panel switch
-            // we will toggle the bit in the DS register based on whether
-            // the key is down or up and the specified mapping mode.
-            //
-            for (int i = 0; i < 16; i++)
-            {
-                if (_dataSwitchMappings[i] == VKeys.None0)
-                {
-                    _dataSwitches &= ~(0x1 << (15 - i));
-                }
-                else if (_dataSwitchMappings[i] == VKeys.None1)
-                {
-                    _dataSwitches |= (0x1 << (15 - i));
-                }
-                else if (virtualKey == _dataSwitchMappings[i])
-                {
-                    switch (_dataSwitchMappingMode)
-                    {
-                        case DataSwitchMappingMode.Momentary:
-                        case DataSwitchMappingMode.MomentaryInverted:
-                            if (_dataSwitchMappingMode == DataSwitchMappingMode.MomentaryInverted)
-                            {
-                                // Invert the sense
-                                keyDown = !keyDown;
-                            }
-
-                            // toggle this bit
-                            if (keyDown)
-                            {
-                                // or it in
-                                _dataSwitches |= (0x1 << (15 - i));
-                            }
-                            else
-                            {
-                                // mask it out
-                                _dataSwitches &= ~(0x1 << (15 - i));
-                            }
-                            break;
-
-                        case DataSwitchMappingMode.Toggle:
-                            if (keyDown)
-                            {
-                                // toggle it
-                                _dataSwitches ^= (0x1 << (15 - i));
-                            }
-                            break;
-                    }
-                }
-            }
-        }
-
-        private static void BuildKeyMappings()
-        {
-            _keyMappings = new Dictionary<VKeys, ImlacKey>();
-
-            _keyMappings.Add(VKeys.End, ImlacKey.DataXmit);
-            _keyMappings.Add(VKeys.DownArrow, ImlacKey.Down);
-            _keyMappings.Add(VKeys.RightArrow, ImlacKey.Right);
-            _keyMappings.Add(VKeys.UpArrow, ImlacKey.Up);
-            _keyMappings.Add(VKeys.LeftArrow, ImlacKey.Left);
-            _keyMappings.Add(VKeys.Tab, ImlacKey.Tab);
-            _keyMappings.Add(VKeys.Return, ImlacKey.CR);
-            _keyMappings.Add(VKeys.PageUp, ImlacKey.FF);
-            _keyMappings.Add(VKeys.PageDown, ImlacKey.PageXmit);
-            _keyMappings.Add(VKeys.Home, ImlacKey.Home);
-            _keyMappings.Add(VKeys.Pause, ImlacKey.Brk);
-            _keyMappings.Add(VKeys.Escape, ImlacKey.Esc);
-            _keyMappings.Add(VKeys.Space, ImlacKey.Space);
-
-            _keyMappings.Add(VKeys.Comma, ImlacKey.Comma);
-            _keyMappings.Add(VKeys.Plus, ImlacKey.Minus);
-            _keyMappings.Add(VKeys.Period, ImlacKey.Period);
-            _keyMappings.Add(VKeys.QuestionMark, ImlacKey.Slash);
-            _keyMappings.Add(VKeys.Zero, ImlacKey.K0);
-            _keyMappings.Add(VKeys.One, ImlacKey.K1);
-            _keyMappings.Add(VKeys.Two, ImlacKey.K2);
-            _keyMappings.Add(VKeys.Three, ImlacKey.K3);
-            _keyMappings.Add(VKeys.Four, ImlacKey.K4);
-            _keyMappings.Add(VKeys.Five, ImlacKey.K5);
-            _keyMappings.Add(VKeys.Six, ImlacKey.K6);
-            _keyMappings.Add(VKeys.Seven, ImlacKey.K7);
-            _keyMappings.Add(VKeys.Eight, ImlacKey.K8);
-            _keyMappings.Add(VKeys.Nine, ImlacKey.K9);
-            _keyMappings.Add(VKeys.Minus, ImlacKey.Colon);
-            _keyMappings.Add(VKeys.Semicolon, ImlacKey.Semicolon);
-
-            _keyMappings.Add(VKeys.Keypad0, ImlacKey.D0);
-            _keyMappings.Add(VKeys.Keypad2, ImlacKey.D2);
-            _keyMappings.Add(VKeys.Keypad4, ImlacKey.D4);
-            _keyMappings.Add(VKeys.Keypad5, ImlacKey.D5);
-            _keyMappings.Add(VKeys.Keypad6, ImlacKey.D6);
-            _keyMappings.Add(VKeys.DoubleQuote, ImlacKey.Unlabeled);
-
-            _keyMappings.Add(VKeys.A, ImlacKey.A);
-            _keyMappings.Add(VKeys.B, ImlacKey.B);
-            _keyMappings.Add(VKeys.C, ImlacKey.C);
-            _keyMappings.Add(VKeys.D, ImlacKey.D);
-            _keyMappings.Add(VKeys.E, ImlacKey.E);
-            _keyMappings.Add(VKeys.F, ImlacKey.F);
-            _keyMappings.Add(VKeys.G, ImlacKey.G);
-            _keyMappings.Add(VKeys.H, ImlacKey.H);
-            _keyMappings.Add(VKeys.I, ImlacKey.I);
-            _keyMappings.Add(VKeys.J, ImlacKey.J);
-            _keyMappings.Add(VKeys.K, ImlacKey.K);
-            _keyMappings.Add(VKeys.L, ImlacKey.L);
-            _keyMappings.Add(VKeys.M, ImlacKey.M);
-            _keyMappings.Add(VKeys.N, ImlacKey.N);
-            _keyMappings.Add(VKeys.O, ImlacKey.O);
-            _keyMappings.Add(VKeys.P, ImlacKey.P);
-            _keyMappings.Add(VKeys.Q, ImlacKey.Q);
-            _keyMappings.Add(VKeys.R, ImlacKey.R);
-            _keyMappings.Add(VKeys.S, ImlacKey.S);
-            _keyMappings.Add(VKeys.T, ImlacKey.T);
-            _keyMappings.Add(VKeys.U, ImlacKey.U);
-            _keyMappings.Add(VKeys.V, ImlacKey.V);
-            _keyMappings.Add(VKeys.W, ImlacKey.W);
-            _keyMappings.Add(VKeys.X, ImlacKey.X);
-            _keyMappings.Add(VKeys.Y, ImlacKey.Y);
-            _keyMappings.Add(VKeys.Z, ImlacKey.Z);
-
-            _keyMappings.Add(VKeys.Delete, ImlacKey.Del);
-        }
-
-        private static Dictionary<VKeys, ImlacKey> _keyMappings;
-
-        private ImlacKey            _latchedKeyCode;        
-        private ImlacKeyModifiers   _keyModifiers;
-        private bool                _keyLatched;
-
-        private ReaderWriterLockSlim _keyLatchedLock;
-
-        // Data switch mappings:
-        // There are 16 switches mapped here, a value of None0 or None1 means
-        // that no key is mapped and to hardcode return value to 0 or 1
-        // The first entry corresponds to bit 0 (MSB)
-        // and the last entry corresponds to bit 15 (LSB)
-        private VKeys[] _dataSwitchMappings = 
-        {
-            VKeys.None0,
-            VKeys.None0,
-            VKeys.None0,
-            VKeys.None0,
-            VKeys.None0,
-            VKeys.None0,
-            VKeys.None0,
-            VKeys.None0,
-            VKeys.None0,
-            VKeys.None0,
-            VKeys.None0,
-            VKeys.None0,
-            VKeys.None0,
-            VKeys.None0,
-            VKeys.None0,
-            VKeys.None0,
-        };
-
-        private int _dataSwitches;
-        private DataSwitchMappingMode _dataSwitchMappingMode;
-
-        private const int WM_SOMETHINGUP = 0x105;
-        private const int WM_SOMETHINGDOWN = 0x104;
-        private const int WM_KEYUP = 0x103;
-        private const int WM_KEYDOWN = 0x102;
-        private const int WM_SYSKEYUP = 0x101;
-        private const int WM_SYSKEYDOWN = 0x100;
-
-        
-    }
     //
     // Provides a console using SDL.
     //
@@ -501,12 +49,22 @@ namespace imlac
             _scaleFactor = scaleFactor;
             _throttleFramerate = true;
 
-            _lock = new ReaderWriterLockSlim();
-            _swapLock = new ReaderWriterLockSlim();
-         
+            _lock = new ReaderWriterLockSlim();            
+            _keyLatchedLock = new ReaderWriterLockSlim();
+
             _frame = 0;
 
-            _frameTimer = new FrameTimer(40);
+            try
+            {
+                _frameTimer = new FrameTimer(40);
+            }
+            catch(Exception)
+            {
+                // Unable to initialize frame timer, we will not be able
+                // to throttle execution.
+                _frameTimer = null;
+            }
+
             _timer = new HighResTimer();
 
             _fullScreen = false;
@@ -521,35 +79,44 @@ namespace imlac
             //
             for (int i = 0; i < _displayListSize; i++)
             {
-                _displayList.Add(new Vector(DrawingMode.Off, 1, 0, 0, 0, 0));
+                _displayList.Add(new Vector(DrawingMode.Off, 0, 0, 0, 0));
             }
 
+            BuildKeyMappings();            
             InvokeDisplayThread();
         }        
         
         public bool IsKeyPressed
         {
-            get { return _keyboardFilter.KeyLatched; }
+            get
+            {
+                _keyLatchedLock.EnterReadLock();
+                bool latched = _keyLatched;
+                _keyLatchedLock.ExitReadLock();
+                return latched;
+            }
         }
 
         public ImlacKey Key
         {
-            get { return _keyboardFilter.LatchedKey; }
+            get { return _latchedKeyCode; }
         }        
 
         public ImlacKeyModifiers KeyModifiers
         {
-            get { return _keyboardFilter.Modifiers; }
+            get { return _keyModifiers; }
         }
 
         public void UnlatchKey()
         {
-            _keyboardFilter.KeyLatched = false;
+            _keyLatchedLock.EnterReadLock();
+            _keyLatched = false;
+            _keyLatchedLock.ExitReadLock();
         }
 
         public ushort DataSwitches
         {
-            get { return _keyboardFilter.DataSwitches; }
+            get { return (ushort)_dataSwitches; }
         } 
 
         public bool ThrottleFramerate
@@ -566,8 +133,8 @@ namespace imlac
 
         public DataSwitchMappingMode DataSwitchMode
         {
-            get { return _keyboardFilter.DataSwitchMode; }
-            set { _keyboardFilter.DataSwitchMode = value; }
+            get { return _dataSwitchMappingMode; }
+            set { _dataSwitchMappingMode = value; }
         }
 
         public bool FullScreen
@@ -604,33 +171,105 @@ namespace imlac
 
         public void MapDataSwitch(uint switchNumber, VKeys key)
         {
-            _keyboardFilter.MapDataSwitch(switchNumber, key);
+            _dataSwitchMappings[switchNumber] = key;
         }
 
         public VKeys GetDataSwitchMapping(uint switchNumber)
         {
-            return _keyboardFilter.GetDataSwitchMapping(switchNumber);
+            return _dataSwitchMappings[switchNumber];
+        }
+
+        private void InitializeSDL()
+        {
+            DoUpdateDisplayScale();
+
+            int retVal = 0;
+
+            // Get SDL humming
+            if ((retVal = SDL.SDL_Init(SDL.SDL_INIT_VIDEO)) < 0)
+            {
+                throw new InvalidOperationException(String.Format("SDL_Init failed.  Error {0:x}", retVal));
+            }
+
+            // 
+            if (SDL.SDL_SetHint(SDL.SDL_HINT_RENDER_SCALE_QUALITY, "0") == SDL.SDL_bool.SDL_FALSE)
+            {
+                throw new InvalidOperationException("SDL_SetHint failed to set scale quality.");
+            }
+
+            _sdlWindow = SDL.SDL_CreateWindow(
+                "Imlac PDS-1",
+                SDL.SDL_WINDOWPOS_UNDEFINED,
+                SDL.SDL_WINDOWPOS_UNDEFINED,
+                _xResolution,
+                _yResolution,
+                _fullScreen ? SDL.SDL_WindowFlags.SDL_WINDOW_FULLSCREEN_DESKTOP | SDL.SDL_WindowFlags.SDL_WINDOW_SHOWN : SDL.SDL_WindowFlags.SDL_WINDOW_SHOWN);
+
+
+            if (_sdlWindow == IntPtr.Zero)
+            {
+                throw new InvalidOperationException("SDL_CreateWindow failed.");
+            }
+
+            _sdlRenderer = SDL.SDL_CreateRenderer(_sdlWindow, -1, SDL.SDL_RendererFlags.SDL_RENDERER_ACCELERATED);
+            if (_sdlRenderer == IntPtr.Zero)
+            {
+                // Fall back to software
+                _sdlRenderer = SDL.SDL_CreateRenderer(_sdlWindow, -1, SDL.SDL_RendererFlags.SDL_RENDERER_SOFTWARE);
+
+                if (_sdlRenderer == IntPtr.Zero)
+                {
+                    // Still no luck.
+                    throw new InvalidOperationException("SDL_CreateRenderer failed.");
+                }
+            }
+
+            SDL.SDL_SetRenderDrawBlendMode(_sdlRenderer, SDL.SDL_BlendMode.SDL_BLENDMODE_BLEND);
+
+            // Register a User event for rendering and resizing.
+            _userEventType = SDL.SDL_RegisterEvents(1);
+            _userEvent = new SDL.SDL_Event();
+            _userEvent.type = SDL.SDL_EventType.SDL_USEREVENT;
+            _userEvent.user.type = _userEventType;           
         }
 
         private void UpdateDisplayScale()
         {
+            //
+            // Send a render event to the SDL message loop so that things
+            // will get rendered.
+            //
+            _userEvent.user.code = (int)UserEventType.Resize;
+            SDL.SDL_PushEvent(ref _userEvent);
+        }
+
+        private void DoUpdateDisplayScale()
+        {
             _xResolution = (int)(2048.0 * _scaleFactor);
             _yResolution = (int)(2048.0 * _scaleFactor);
 
-            Video.SetVideoMode((int)_xResolution, (int)_yResolution, 32, false, false, _fullScreen, true);
-            Video.WindowCaption = "Imlac PDS-1";
-            _displaySurface = Video.Screen.CreateCompatibleSurface((int)_xResolution, (int)_yResolution, true);
-            _displayBox = new SdlDotNet.Graphics.Primitives.Box(0, 0, (short)Video.Screen.Rectangle.Width, (short)Video.Screen.Rectangle.Height);
+            _displayRect = new SDL.SDL_Rect();
+            _displayRect.x = 0;
+            _displayRect.y = 0;
+            _displayRect.h = (int)_yResolution;
+            _displayRect.w = (int)_xResolution;
+
+            if (_sdlWindow != null)
+            {
+                SDL.SDL_SetWindowSize(_sdlWindow, _xResolution, _yResolution);
+                SDL.SDL_SetWindowFullscreen(_sdlWindow,
+                    _fullScreen ? (uint)SDL.SDL_WindowFlags.SDL_WINDOW_FULLSCREEN_DESKTOP : 0);
+            }
         }
 
         public void MoveAbsolute(uint x, uint y, DrawingMode mode)
         {            
             //
             // Take coordinates as an 11-bit quantity (0-2048) even though we may not be displaying the full resolution.
-            //             
+            //
             if (mode != DrawingMode.Off)
             {
-                AddNewVector(mode, _x, _y, x, y);                
+                AddNewVector(mode, _x, _y, x, y);
             }
 
             _x = x;
@@ -651,48 +290,160 @@ namespace imlac
             //
             // Sync to 40hz framerate
             //
-            if (_throttleFramerate)
+            if (_throttleFramerate && _frameTimer != null)
             {
                 _frameTimer.WaitForFrame();
             }
-        }        
+        }
 
         private void InvokeDisplayThread()
         {
             _displayThread = new System.Threading.Thread(new System.Threading.ThreadStart(DisplayThread));
             _displayThread.Start();
            
-            _initEvent = new ManualResetEvent(false);
-
-            WaitHandle[] handles = { _initEvent };
-
-            WaitHandle.WaitAll(handles);
-
-            Thread.Sleep(500);           
-
+            //
+            // Wait until the display has been initialized.
+            //
+            _syncEvent = new AutoResetEvent(false);
+            _syncEvent.WaitOne();
         }
 
         private void DisplayThread()
         {
-            UpdateDisplayScale();
-            _initEvent.Set();
+            InitializeSDL();
+            _syncEvent.Set();
+        
+            while (true)
+            {
+                SDL.SDL_Event e;
 
-            _keyboardFilter = new KeyboardFilter();
-            Application.AddMessageFilter(_keyboardFilter);
+                //
+                // Run main message loop
+                //
+                while (SDL.SDL_WaitEvent(out e) != 0)
+                {
+                    switch (e.type)
+                    {
+                        case SDL.SDL_EventType.SDL_USEREVENT:                            
+                            if (e.user.code == (int)UserEventType.Render)
+                            {
+                                DoRender(_renderCompleteFrame);
+                            }
+                            else if (e.user.code == (int)UserEventType.Resize)
+                            {
+                                DoUpdateDisplayScale();
+                            }
+                            break;
 
-            _keyboardFilter.FullScreenToggle += new EventHandler(OnFullScreenToggle);
-          
-            Application.Run();
+                        case SDL.SDL_EventType.SDL_QUIT:
+                            return;
+
+                        case SDL.SDL_EventType.SDL_KEYDOWN:
+                            SdlKeyDown(e.key.keysym.sym);
+                            break;
+
+                        case SDL.SDL_EventType.SDL_KEYUP:
+                            SdlKeyUp(e.key.keysym.sym);
+                            break;
+                    }
+                }
+
+                SDL.SDL_Delay(0);
+            }
         }
 
-        void OnFullScreenToggle(object sender, EventArgs e)
+        private void SdlKeyDown(SDL_Keycode key)
+        {            
+            switch(key)
+            {
+                case SDL_Keycode.SDLK_LSHIFT:
+                case SDL_Keycode.SDLK_RSHIFT:
+                    _keyModifiers |= ImlacKeyModifiers.Shift;
+                    break;
+
+                case SDL_Keycode.SDLK_LCTRL:
+                case SDL_Keycode.SDLK_RCTRL:
+                    _keyModifiers |= ImlacKeyModifiers.Ctrl;
+                    break;
+
+                case SDL_Keycode.SDLK_LALT:
+                case SDL_Keycode.SDLK_RALT:
+                    _keyModifiers |= ImlacKeyModifiers.Rept;
+                    break;
+
+                default:
+
+                    UpdateDataSwitches(key, true /* key down */);
+
+                    if (key == SDL_Keycode.SDLK_INSERT)
+                    {
+                        FullScreenToggle();
+                    }
+
+                    _keyLatchedLock.EnterWriteLock();
+
+                    _keyLatched = true;
+                    _latchedKeyCode = TranslateKeyCode(key);
+
+                    _keyLatchedLock.ExitWriteLock();
+                    break;
+            }            
+        }
+
+        private void SdlKeyUp(SDL.SDL_Keycode key)
+        {
+            switch (key)
+            {
+                case SDL_Keycode.SDLK_LSHIFT:
+                case SDL_Keycode.SDLK_RSHIFT:
+                    _keyModifiers &= ~ImlacKeyModifiers.Shift;
+                    break;
+
+                case SDL_Keycode.SDLK_LCTRL:
+                case SDL_Keycode.SDLK_RCTRL:
+                    _keyModifiers &= ~ImlacKeyModifiers.Ctrl;
+                    break;
+
+                case SDL_Keycode.SDLK_LALT:
+                case SDL_Keycode.SDLK_RALT:
+                    _keyModifiers &= ~ImlacKeyModifiers.Rept;
+                    break;
+
+                default:
+
+                    UpdateDataSwitches(key, false /* key down */);
+
+                    _keyLatchedLock.EnterWriteLock();
+                    _latchedKeyCode = ImlacKey.Invalid;
+                    _keyLatchedLock.ExitWriteLock();
+                    break;
+            }
+        }
+
+        void FullScreenToggle()
         {
             _fullScreen = !_fullScreen;
 
-            UpdateScreenMode();            
-        }                    
-       
+            UpdateScreenMode();
+        }  
+        
         public void RenderCurrent(bool completeFrame)
+        {
+            //
+            // Send a render event to the SDL message loop so that things
+            // will get rendered.
+            //
+            _renderCompleteFrame = completeFrame;
+            _userEvent.user.code = (int)UserEventType.Render;
+            SDL.SDL_PushEvent(ref _userEvent);
+
+            //
+            // Wait for rendering to complete before returning.
+            //
+            _syncEvent.WaitOne();
+        }
+       
+        public void DoRender(bool completeFrame)
         {            
             // Draw the current set of vectors
             _lock.EnterReadLock();
@@ -705,7 +456,7 @@ namespace imlac
                 _lastTime = currentTime;
                 _frame = 0;
 
-                Video.WindowCaption = String.Format("Imlac PDS-1 fps {0}", fps);
+                SDL.SDL_SetWindowTitle(_sdlWindow, String.Format("Imlac PDS-1 fps {0}", fps));
             }
 
             //
@@ -714,26 +465,36 @@ namespace imlac
             // (slow persistence phosphor simulation!)            
             // Otherwise clear the display completely.
             //
-            _displayBox.Draw(_displaySurface, completeFrame ? Color.FromArgb(32, Color.Black) : Color.Black, false, true);
+            if (completeFrame)
+            {
+                SDL.SDL_SetRenderDrawColor(_sdlRenderer, 0, 0, 0, 32);
+            }
+            else
+            {
+                SDL.SDL_SetRenderDrawColor(_sdlRenderer, 0, 0, 0, 0xff);
+            }
+
+            SDL.SDL_RenderFillRect(_sdlRenderer, ref _displayRect);
 
             // And draw in this frame's vectors
             for (int i = 0; i < _displayListIndex; i++)
-            {
-                _displayList[i].Draw(_displaySurface);
-            }
-
-            _lock.ExitReadLock();
-
-            _swapLock.EnterReadLock();
-            Video.Screen.Blit(_displaySurface);
+            {                
+                _displayList[i].Draw(_sdlRenderer);
+            }            
+            
+            SDL.SDL_RenderPresent(_sdlRenderer);
 
             if (completeFrame)
             {
                 _displayListIndex = 0;
             }
 
-            Video.Screen.Update();
-            _swapLock.ExitReadLock();
+            _lock.ExitReadLock();
+
+            //
+            // Indicate that we're through rendering.
+            //
+            _syncEvent.Set();
         }
 
         private void AddNewVector(DrawingMode mode, uint startX, uint startY, uint endX, uint endY)
@@ -758,24 +519,19 @@ namespace imlac
         }
 
         private void UpdateScreenMode()
-        {
-            _swapLock.EnterWriteLock();
-            Video.SetVideoMode((int)_xResolution, (int)_yResolution, 32, false, false, _fullScreen, true);
-            _displaySurface = Video.Screen.CreateCompatibleSurface((int)_xResolution, (int)_yResolution, true);
-            _swapLock.ExitWriteLock();
+        {            
+            UpdateDisplayScale();
         }
 
         private class Vector
         {
-            public Vector(DrawingMode mode, int thickness, uint startX, uint startY, uint endX, uint endY)
+            public Vector(DrawingMode mode, uint startX, uint startY, uint endX, uint endY)
             {
                 _mode = mode;
-                _lines = new SdlDotNet.Graphics.Primitives.Line[thickness];
-
-                for (int i = 0; i < thickness; i++)
-                {
-                    _lines[i] = new SdlDotNet.Graphics.Primitives.Line((short)(startX + i), (short)(startY + i), (short)(endX + i), (short)(endY + i));
-                }
+                _x1 = (int)startX;
+                _y1 = (int)startY;
+                _x2 = (int)endX;
+                _y2 = (int)endY;
 
                 UpdateColor();
             }
@@ -788,34 +544,29 @@ namespace imlac
                     UpdateColor();
                 }
 
-                for (int i = 0; i < _lines.Length; i++)
-                {
-                    _lines[i].XPosition1 = (short)(startX + i);
-                    _lines[i].XPosition2 = (short)(endX + i);
-                    _lines[i].YPosition1 = (short)(startY + i);
-                    _lines[i].YPosition2 = (short)(endY + i);
-                }
+                _x1 = (int)startX;
+                _y1 = (int)startY;
+                _x2 = (int)endX;
+                _y2 = (int)endY;
             }
 
-            public void Draw(Surface displaySurface)
+            public void Draw(IntPtr sdlRenderer)
             {
-                // TODO: handle dotted lines, line thickness options
-                for (int i = 0; i < _lines.Length; i++)
-                {
-                    _lines[i].Draw(displaySurface, _color, true);
-                }
+                // TODO: handle dotted lines, line thickness options    
+                SDL.SDL_SetRenderDrawColor(sdlRenderer, _color.R, _color.G, _color.B, _color.A);
+                SDL.SDL_RenderDrawLine(sdlRenderer, _x1, _y1, _x2, _y2);                
             }
 
             private void UpdateColor()
             {
                 switch (_mode)
                 {
-                    case DrawingMode.Dotted:
                     case DrawingMode.Normal:
                         _color = NormalColor;
                         break;
 
                     case DrawingMode.Point:
+                    case DrawingMode.Dotted:
                         _color = PointColor;
                         break;
 
@@ -829,22 +580,290 @@ namespace imlac
                 }
             }
 
-            private DrawingMode _mode;
-            private SdlDotNet.Graphics.Primitives.Line[] _lines;
+            private DrawingMode _mode;            
             private Color _color;
+            private int _x1;
+            private int _y1;
+            private int _x2;
+            private int _y2;
 
             private static Color NormalColor = Color.FromArgb(196, Color.ForestGreen);
             private static Color PointColor = Color.FromArgb(255, Color.ForestGreen);
             private static Color SGRColor = Color.FromArgb(128, Color.ForestGreen);
             private static Color DebugColor = Color.FromArgb(255, Color.OrangeRed);
         }
+        
+        private static void BuildKeyMappings()
+        {
+            _sdlImlacKeymap = new Dictionary<SDL_Keycode, ImlacKey>();
 
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_END, ImlacKey.DataXmit);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_DOWN, ImlacKey.Down);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_RIGHT, ImlacKey.Right);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_UP, ImlacKey.Up);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_LEFT, ImlacKey.Left);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_TAB, ImlacKey.Tab);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_RETURN, ImlacKey.CR);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_PAGEUP, ImlacKey.FF);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_PAGEDOWN, ImlacKey.PageXmit);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_HOME, ImlacKey.Home);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_PAUSE, ImlacKey.Brk);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_ESCAPE, ImlacKey.Esc);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_SPACE, ImlacKey.Space);
 
-        private System.Threading.Thread _displayThread;
-        private Surface _displaySurface;
-        private SdlDotNet.Graphics.Primitives.Box _displayBox;
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_COMMA, ImlacKey.Comma);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_PLUS, ImlacKey.Minus);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_PERIOD, ImlacKey.Period);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_QUESTION, ImlacKey.Slash);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_0, ImlacKey.K0);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_1, ImlacKey.K1);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_2, ImlacKey.K2);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_3, ImlacKey.K3);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_4, ImlacKey.K4);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_5, ImlacKey.K5);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_6, ImlacKey.K6);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_7, ImlacKey.K7);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_8, ImlacKey.K8);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_9, ImlacKey.K9);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_MINUS, ImlacKey.Colon);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_SEMICOLON, ImlacKey.Semicolon);
 
-        private ManualResetEvent _initEvent;
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_KP_0, ImlacKey.D0);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_KP_2, ImlacKey.D2);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_KP_4, ImlacKey.D4);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_KP_5, ImlacKey.D5);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_KP_6, ImlacKey.D6);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_QUOTEDBL, ImlacKey.Unlabeled);
+
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_a, ImlacKey.A);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_b, ImlacKey.B);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_c, ImlacKey.C);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_d, ImlacKey.D);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_e, ImlacKey.E);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_f, ImlacKey.F);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_g, ImlacKey.G);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_h, ImlacKey.H);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_i, ImlacKey.I);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_j, ImlacKey.J);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_k, ImlacKey.K);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_l, ImlacKey.L);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_m, ImlacKey.M);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_n, ImlacKey.N);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_o, ImlacKey.O);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_p, ImlacKey.P);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_q, ImlacKey.Q);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_r, ImlacKey.R);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_s, ImlacKey.S);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_t, ImlacKey.T);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_u, ImlacKey.U);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_v, ImlacKey.V);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_w, ImlacKey.W);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_x, ImlacKey.X);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_y, ImlacKey.Y);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_z, ImlacKey.Z);
+
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_DELETE, ImlacKey.Del);
+
+            _sdlVKeymap = new Dictionary<SDL_Keycode, VKeys>();
+
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_END, VKeys.End);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_DOWN, VKeys.DownArrow);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_RIGHT, VKeys.RightArrow);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_UP, VKeys.UpArrow);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_LEFT, VKeys.LeftArrow);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_TAB, VKeys.Tab);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_RETURN, VKeys.Return);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_PAGEUP, VKeys.PageUp);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_PAGEDOWN, VKeys.PageDown);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_HOME, VKeys.Home);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_PAUSE, VKeys.Pause);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_ESCAPE, VKeys.Escape);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_SPACE, VKeys.Space);
+
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_COMMA, VKeys.Comma);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_PLUS, VKeys.Plus);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_PERIOD, VKeys.Period);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_QUESTION, VKeys.QuestionMark);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_0,VKeys.Zero);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_1,VKeys.One);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_2,VKeys.Two);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_3,VKeys.Three);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_4,VKeys.Four);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_5,VKeys.Five);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_6,VKeys.Six);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_7,VKeys.Seven);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_8,VKeys.Eight);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_9,VKeys.Nine);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_MINUS, VKeys.Minus);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_SEMICOLON, VKeys.Semicolon);
+
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_KP_0, VKeys.Keypad0);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_KP_2, VKeys.Keypad2);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_KP_4, VKeys.Keypad4);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_KP_5, VKeys.Keypad5);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_KP_6, VKeys.Keypad6);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_QUOTEDBL, VKeys.DoubleQuote);
+
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_a,VKeys.A);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_b,VKeys.B);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_c,VKeys.C);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_d,VKeys.D);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_e,VKeys.E);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_f,VKeys.F);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_g,VKeys.G);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_h,VKeys.H);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_i,VKeys.I);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_j,VKeys.J);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_k,VKeys.K);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_l,VKeys.L);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_m,VKeys.M);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_n,VKeys.N);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_o,VKeys.O);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_p,VKeys.P);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_q,VKeys.Q);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_r,VKeys.R);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_s,VKeys.S);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_t,VKeys.T);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_u,VKeys.U);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_v,VKeys.V);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_w,VKeys.W);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_x,VKeys.X);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_y,VKeys.Y);
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_z,VKeys.Z);
+
+            _sdlVKeymap.Add(SDL_Keycode.SDLK_DELETE, VKeys.Delete);
+        }
+
+        private ImlacKey TranslateKeyCode(SDL_Keycode virtualKey)
+        {
+            if (_sdlImlacKeymap.ContainsKey(virtualKey))
+            {
+                return _sdlImlacKeymap[virtualKey];
+            }
+            else
+            {
+                return ImlacKey.Invalid;
+            }
+        }
+
+        private void UpdateDataSwitches(SDL_Keycode sdlKey, bool keyDown)
+        {
+            if (_sdlVKeymap.ContainsKey(sdlKey))
+            {
+
+                VKeys virtualKey = _sdlVKeymap[sdlKey];
+
+                //
+                // If this is a key mapped to a front panel switch
+                // we will toggle the bit in the DS register based on whether
+                // the key is down or up and the specified mapping mode.
+                //
+                for (int i = 0; i < 16; i++)
+                {
+                    if (_dataSwitchMappings[i] == VKeys.None0)
+                    {
+                        _dataSwitches &= ~(0x1 << (15 - i));
+                    }
+                    else if (_dataSwitchMappings[i] == VKeys.None1)
+                    {
+                        _dataSwitches |= (0x1 << (15 - i));
+                    }
+                    else if (virtualKey == _dataSwitchMappings[i])
+                    {
+                        switch (_dataSwitchMappingMode)
+                        {
+                            case DataSwitchMappingMode.Momentary:
+                            case DataSwitchMappingMode.MomentaryInverted:
+                                if (_dataSwitchMappingMode == DataSwitchMappingMode.MomentaryInverted)
+                                {
+                                    // Invert the sense
+                                    keyDown = !keyDown;
+                                }
+
+                                // toggle this bit
+                                if (keyDown)
+                                {
+                                    // or it in
+                                    _dataSwitches |= (0x1 << (15 - i));
+                                }
+                                else
+                                {
+                                    // mask it out
+                                    _dataSwitches &= ~(0x1 << (15 - i));
+                                }
+                                break;
+
+                            case DataSwitchMappingMode.Toggle:
+                                if (keyDown)
+                                {
+                                    // toggle it
+                                    _dataSwitches ^= (0x1 << (15 - i));
+                                }
+                                break;
+                        }
+                    }
+                }
+            }
+        }
+
+        private static Dictionary<SDL_Keycode, ImlacKey> _sdlImlacKeymap;
+        private static Dictionary<SDL_Keycode, VKeys> _sdlVKeymap;
+        private ImlacKey _latchedKeyCode;
+        private ImlacKeyModifiers _keyModifiers;
+        private bool _keyLatched;
+
+        private ReaderWriterLockSlim _keyLatchedLock;
+
+        // Data switch mappings:
+        // There are 16 switches mapped here, a value of None0 or None1 means
+        // that no key is mapped and to hardcode return value to 0 or 1
+        // The first entry corresponds to bit 0 (MSB)
+        // and the last entry corresponds to bit 15 (LSB)
+        private VKeys[] _dataSwitchMappings =
+        {
+            VKeys.None0,
+            VKeys.None0,
+            VKeys.None0,
+            VKeys.None0,
+            VKeys.None0,
+            VKeys.None0,
+            VKeys.None0,
+            VKeys.None0,
+            VKeys.None0,
+            VKeys.None0,
+            VKeys.None0,
+            VKeys.None0,
+            VKeys.None0,
+            VKeys.None0,
+            VKeys.None0,
+            VKeys.None0,
+        };
+
+        private int _dataSwitches;
+        private DataSwitchMappingMode _dataSwitchMappingMode;        
+
+        //
+        // SDL
+        //
+        private IntPtr _sdlWindow = IntPtr.Zero;
+        private IntPtr _sdlRenderer = IntPtr.Zero;
+        private SDL.SDL_Rect _displayRect;
+
+        // 
+        // SDL User events
+        //
+        private UInt32 _userEventType;
+        private SDL.SDL_Event _userEvent;        
+
+        private enum UserEventType
+        {
+            Render = 0,
+            Resize
+        }
+
+        private System.Threading.Thread _displayThread;        
+
+        private AutoResetEvent _syncEvent;
         
         private uint _x;
         private uint _y;
@@ -852,6 +871,7 @@ namespace imlac
         private int _xResolution;
         private int _yResolution;
         private float _scaleFactor;
+        private bool _renderCompleteFrame;
 
         private bool _fullScreen;
         private bool _throttleFramerate;
@@ -861,11 +881,7 @@ namespace imlac
         private List<Vector> _displayList;
         private const int _displayListSize = 100000;        // Considerably more than a real Imlac could ever hope to draw in a single frame.
 
-        private System.Threading.ReaderWriterLockSlim _lock;
-        private System.Threading.ReaderWriterLockSlim _swapLock;
-
-        // keyboard input data
-        private KeyboardFilter _keyboardFilter;
+        private System.Threading.ReaderWriterLockSlim _lock;        
 
         private uint _frame;
         private double _lastTime;

@@ -1,4 +1,4 @@
-﻿sImlac v0.1 README - (c) 2016, 2017 Living Computers: Museum+Labs
+﻿sImlac v0.2 README - (c) 2016-2018 Living Computers: Museum+Labs
 -----------------------------------------------------------------
 
 1. Overview
@@ -23,12 +23,29 @@ This is enough to have fun with the small amount of archived software that's out
 there.  Support for additional hardware is planned, but is mostly dependent on
 finding software that requires it.
 
-Since this is v0.1, there are still likely to be bugs.
+Since this is v0.2, there are still likely to be bugs.
 
 Questions, comments, or bug reports can be directed at 
 joshd@livingcomputers.org.
 
-2. Getting Started
+2. System Requirements
+----------------------
+
+sImlac is a .NET application and should run on will run on any Windows PC running 
+Windows Vista or later, with version 4.5.3 or later of the .NET Framework installed.
+.NET should be present by default on Windows Vista and later; if it is not installed 
+on your computer it can be obtained at https://www.microsoft.com/net.
+
+As ContrAlto is a .NET application it will also run under Mono 
+(http://www.mono-project.com/) on Unix and OS X.
+
+sImlac uses SDL 2.0 for display and input.  On Windows the appropriate SDL.dll is 
+included in the distribution package.  On Linux, use your system's package manager 
+to install SDL 2.0; on OS X the easiest way to get SDL 2.0 is to use Homebrew
+(https://brew.sh/), via the "brew install sdl2" command.
+
+
+3. Getting Started
 ------------------
 
 Bootstrapping an Imlac is a pretty straightforward process:
@@ -70,10 +87,10 @@ halt if bit 0 is not set.
 
 Will usually set you right.
 
-3. Usage
+4. Usage
 --------
 
-3.1 Command line arguments
+4.1 Command line arguments
 --------------------------
 
 sImlac accepts one optional command line argument, which specifies a file to
@@ -85,7 +102,7 @@ the contents of "otherscript.txt" to be loaded and executed as a script.)
 Whitespace is ignored.
 
 
-3.2 The sImlac console/debugger
+4.2 The sImlac console/debugger
 -------------------------------
 
 After startup, you will be at the sImlac debugger prompt (a '>' character).
@@ -106,7 +123,7 @@ While the simulated Imlac is running (via the 'go' or other commands) the
 console is inactive; press Ctrl-C to stop the Imlac and return to the command
 prompt.
 
-3.3 The sImlac display
+4.3 The sImlac display
 ----------------------
 
 sImlac creates a window that simulates the Imlac's vector display and allows
@@ -114,7 +131,7 @@ keyboard input to the Imlac.  When Imlac programs are running, their output
 will be displayed here.  By default, the display is shown in a window, pressing
 the "Insert" key will toggle between window and fullscreen modes.
 
-3.4 Commands
+4.4 Commands
 ------------
 
 reset               :  Resets the Imlac, but does not clear its memory.
@@ -237,7 +254,7 @@ show breakpoints   : Lists the defined breakpoints.
 show commands      : Displays a synopsis of available console commands.
 
 
-3.5 Data Switch Mappings
+4.5 Data Switch Mappings
 ------------------------
 
 Some Imlac software (mostly games) use the Data Switches on the Imlac's front
@@ -309,3 +326,12 @@ Thanks go out to:
   on it!
 
 - Bitsavers.org for making documentation for the Imlac available.
+
+
+7. Revision History
+-------------------
+
+v0.2 - Updated to use SDL-CS for better cross-platform support.
+
+v0.1 - Initial Release
+

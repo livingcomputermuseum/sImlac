@@ -43,8 +43,7 @@ namespace imlac
         {
             _system = system;
             _mem = _system.Memory;
-            _instructionCache = new Instruction[Memory.Size];
-            _instructionState = ExecState.Fetch;
+            _instructionCache = new Instruction[Memory.Size];            
 
             _iotDispatch = new IIOTDevice[0x200];   // 9 bits of IOT instructions
 
@@ -58,6 +57,7 @@ namespace imlac
             _link = 0;
             _currentInstruction = null;
             _currentIndirectAddress = 0x0000;
+            _instructionState = ExecState.Fetch;
             _state = ProcessorState.Halted;
         }
 
