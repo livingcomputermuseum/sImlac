@@ -58,14 +58,12 @@ namespace imlac
             {
                 _frameTimer = new FrameTimer(40);
             }
-            catch(Exception)
+            catch
             {
                 // Unable to initialize frame timer, we will not be able
                 // to throttle execution.
                 _frameTimer = null;
             }
-
-            _timer = new HighResTimer();
 
             _fullScreen = false;
 
@@ -448,16 +446,6 @@ namespace imlac
             // Draw the current set of vectors
             _lock.EnterReadLock();
             _frame++;
-
-            if (_frame == 60)
-            {
-                double currentTime = _timer.GetCurrentTime();
-                double fps = _frame / ((currentTime - _lastTime));
-                _lastTime = currentTime;
-                _frame = 0;
-
-                SDL.SDL_SetWindowTitle(_sdlWindow, String.Format("Imlac PDS-1 fps {0}", fps));
-            }
 
             //
             // If we're drawing a complete frame (not running in debug mode)
@@ -884,11 +872,9 @@ namespace imlac
         private System.Threading.ReaderWriterLockSlim _lock;        
 
         private uint _frame;
-        private double _lastTime;
 
         // Framerate management
         FrameTimer _frameTimer;
-        HighResTimer _timer;
         
     }
 }

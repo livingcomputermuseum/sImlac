@@ -155,16 +155,24 @@ namespace imlac
 
         ~FrameTimer()
         {
-            //
-            // Clean stuff up
-            //
-            DeleteTimerQueueTimer(_hTimerQueue, _hTimer, IntPtr.Zero);            
-            DeleteTimerQueue(_hTimerQueue, IntPtr.Zero);
+            try
+            {
+                //
+                // Clean stuff up
+                //
+                DeleteTimerQueueTimer(_hTimerQueue, _hTimer, IntPtr.Zero);
+                DeleteTimerQueue(_hTimerQueue, IntPtr.Zero);
 
-            //
-            // Fire off a final event to release any call that's waiting...
-            //
-            _event.Set();
+                //
+                // Fire off a final event to release any call that's waiting...
+                //
+                _event.Set();
+            }
+            catch
+            {
+                // Nothing.  If the above fails it's due to the Win32 APIs not being present.
+                // Just fail quietly.
+            }
         }
 
         /// <summary>
