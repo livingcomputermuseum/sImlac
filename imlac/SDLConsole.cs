@@ -224,6 +224,11 @@ namespace imlac
 
             SDL.SDL_SetRenderDrawBlendMode(_sdlRenderer, SDL.SDL_BlendMode.SDL_BLENDMODE_BLEND);
 
+            // Clear the screen.
+            SDL.SDL_SetRenderDrawColor(_sdlRenderer, 0, 0, 0, 0xff);
+            SDL.SDL_RenderFillRect(_sdlRenderer, ref _displayRect);
+            SDL.SDL_RenderPresent(_sdlRenderer);
+
             // Register a User event for rendering and resizing.
             _userEventType = SDL.SDL_RegisterEvents(1);
             _userEvent = new SDL.SDL_Event();

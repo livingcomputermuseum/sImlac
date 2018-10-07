@@ -166,7 +166,9 @@ namespace imlac.Debugger
             }
             catch (Exception e)
             {
-                Console.WriteLine(e.Message);
+                Console.WriteLine(
+                    "Error: {0}",
+                    e.InnerException != null ? e.InnerException.Message : e.Message);
             }
 
             return next;
