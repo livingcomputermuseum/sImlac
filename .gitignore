@@ -191,3 +191,6 @@ ModelManifest.xml
 /sImlac.VC.VC.opendb
 /sImlac.VC.db
 /.vs/imlac/v15/Server/sqlite3/db.lock
+/.vs/imlac/v15/Server/sqlite3/storage.ide
+/.vs/imlac/v15/Server/sqlite3/storage.ide-shm
+/.vs/imlac/v15/Server/sqlite3/storage.ide-wal
