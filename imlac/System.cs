@@ -39,8 +39,7 @@ namespace imlac
     public class ImlacSystem
     {
         public ImlacSystem()
-        {            
-            _display = new SDLConsole(0.5f);
+        {
             _memory = new Memory(this);
             _paperTapeReader = new PaperTapeReader(this);
             _tty = new TTY(this);
@@ -68,6 +67,16 @@ namespace imlac
             _interruptFacility.Reset();
             _displayProcessor.Reset();
             _processor.Reset();
+        }
+
+        public void Shutdown()
+        {
+            _display.Shutdown();
+        }
+
+        public void AttachConsole(IImlacConsole console)
+        {
+            _display = console;
         }
 
         public Memory Memory

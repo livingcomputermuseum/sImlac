@@ -24,28 +24,57 @@ namespace imlac
     {
         static void Main(string[] args)
         {
-            ImlacSystem system = new ImlacSystem();
-            ConsoleExecutor debuggerPrompt =
-                new ConsoleExecutor(system);
+            _startupArgs = args;
 
+            _console = new SDLConsole(0.5f);
+            _imlacSystem = new ImlacSystem();
+            _imlacSystem.AttachConsole(_console);
+            _imlacSystem.Reset();
+         
             _state = SystemExecutionState.Debugging;
 
             Console.CancelKeyPress += new ConsoleCancelEventHandler(OnBreak);
 
             PrintHerald();
 
-            if (args.Length > 0)
+            //
+            // Start the debugger / execution thread
+            //
+            _debuggerThread = new System.Threading.Thread(new System.Threading.ThreadStart(DebuggerThread));
+            _debuggerThread.Start();
+
+            //
+            // Show the display; this will return when the display window is closed.
+            //
+            _console.Show();
+
+            //
+            // Kill the system if it's still running.
+            //
+            _debuggerThread.Abort();
+        }
+
+        private static void DebuggerThread()
+        {
+            //
+            // Wait for the display to be ready.
+            //
+            _console.WaitForSync();
+
+            ConsoleExecutor debuggerPrompt = new ConsoleExecutor(_imlacSystem);
+
+            if (_startupArgs.Length > 0)
             {
                 //
                 // Assume arg 0 is a script file to be executed.
                 //
-                Console.WriteLine("Executing startup script '{0}'", args[0]);
+                Console.WriteLine("Executing startup script '{0}'", _startupArgs[0]);
 
                 try
                 {
-                    _state = debuggerPrompt.ExecuteScript(system, args[0]);
+                    _state = debuggerPrompt.ExecuteScript(_imlacSystem, _startupArgs[0]);
                 }
-                catch(Exception e)
+                catch (Exception e)
                 {
                     Console.WriteLine("Error parsing script: {0}", e.Message);
                 }
@@ -59,19 +88,19 @@ namespace imlac
                     {
                         case SystemExecutionState.Halted:
                         case SystemExecutionState.Debugging:
-                            _state = debuggerPrompt.Prompt(system);
+                            _state = debuggerPrompt.Prompt(_imlacSystem);
                             break;
 
                         case SystemExecutionState.SingleStep:
-                            system.SingleStep();
-                            system.Display.RenderCurrent(false);
+                            _imlacSystem.SingleStep();
+                            _imlacSystem.Display.RenderCurrent(false);
                             _state = SystemExecutionState.Debugging;
                             break;
 
                         case SystemExecutionState.SingleFrame:
-                            system.SingleStep();
+                            _imlacSystem.SingleStep();
 
-                            if (system.DisplayProcessor.FrameLatch)
+                            if (_imlacSystem.DisplayProcessor.FrameLatch)
                             {
                                 Console.WriteLine("Frame completed.");
                                 _state = SystemExecutionState.Debugging;
@@ -79,9 +108,9 @@ namespace imlac
                             break;
 
                         case SystemExecutionState.UntilDisplayStart:
-                            system.SingleStep();
+                            _imlacSystem.SingleStep();
 
-                            if (system.DisplayProcessor.State == ProcessorState.Running)
+                            if (_imlacSystem.DisplayProcessor.State == ProcessorState.Running)
                             {
                                 Console.WriteLine("Display started.");
                                 _state = SystemExecutionState.Debugging;
@@ -89,45 +118,54 @@ namespace imlac
                             break;
 
                         case SystemExecutionState.Running:
-                            system.SingleStep();
+                            _imlacSystem.SingleStep();
 
-                            if (system.Processor.State == ProcessorState.Halted)
+                            if (_imlacSystem.Processor.State == ProcessorState.Halted)
                             {
-                                Console.WriteLine("Main processor halted at {0}", Helpers.ToOctal(system.Processor.PC));
+                                Console.WriteLine("Main processor halted at {0}", Helpers.ToOctal(_imlacSystem.Processor.PC));
                                 _state = SystemExecutionState.Debugging;
                             }
-                            else if (system.Processor.State == ProcessorState.BreakpointHalt)
+                            else if (_imlacSystem.Processor.State == ProcessorState.BreakpointHalt)
                             {
                                 Console.WriteLine(
                                     "Breakpoint hit: {0} at address {1}",
-                                    BreakpointManager.GetBreakpoint(system.Processor.BreakpointAddress),
-                                    Helpers.ToOctal(system.Processor.BreakpointAddress));
+                                    BreakpointManager.GetBreakpoint(_imlacSystem.Processor.BreakpointAddress),
+                                    Helpers.ToOctal(_imlacSystem.Processor.BreakpointAddress));
                                 _state = SystemExecutionState.Debugging;
                             }
                             break;
                     }
                 }
-                catch(Exception e)
+                catch (Exception e)
                 {
                     Console.WriteLine("Internal error during execution: {0}", e.Message);
                     _state = SystemExecutionState.Debugging;
                 }
             }
+
+            // We are exiting, shut things down.
+            //
+            _imlacSystem.Shutdown();
         }
 
-        static void OnBreak(object sender, ConsoleCancelEventArgs e)
+        private static void OnBreak(object sender, ConsoleCancelEventArgs e)
         {
             Console.WriteLine("User break.");
             _state = SystemExecutionState.Debugging;
             e.Cancel = true;
         }
 
-        static void PrintHerald()
+        private static void PrintHerald()
         {
             Console.WriteLine("sImlac v0.2.  (c) 2016-2018 Living Computers: Museum+Labs");
             Console.WriteLine();
         }
 
+        private static string[] _startupArgs;
+        private static SDLConsole _console;
+        private static ImlacSystem _imlacSystem;
         private static SystemExecutionState _state;
+
+        private static System.Threading.Thread _debuggerThread;
     }
 }

@@ -214,5 +214,7 @@ namespace imlac
         void MapDataSwitch(uint switchNumber, VKeys key);
 
         VKeys GetDataSwitchMapping(uint switchNumber);
+
+        void Shutdown();
     }
 }

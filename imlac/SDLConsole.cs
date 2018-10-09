@@ -51,8 +51,9 @@ namespace imlac
 
             _lock = new ReaderWriterLockSlim();            
             _keyLatchedLock = new ReaderWriterLockSlim();
+            _syncEvent = new AutoResetEvent(false);
 
-            _frame = 0;
+             _frame = 0;
 
             try
             {
@@ -80,8 +81,7 @@ namespace imlac
                 _displayList.Add(new Vector(DrawingMode.Off, 0, 0, 0, 0));
             }
 
-            BuildKeyMappings();            
-            InvokeDisplayThread();
+            BuildKeyMappings();
         }        
         
         public bool IsKeyPressed
@@ -146,6 +146,28 @@ namespace imlac
                     UpdateScreenMode();
                 }
             }
+        }
+
+        public void Shutdown()
+        {
+            //
+            // Tell the SDL event loop to wrap things up.
+            //
+            _userEvent.type = SDL.SDL_EventType.SDL_QUIT;
+            SDL.SDL_PushEvent(ref _userEvent);
+        }
+
+        /// <summary>
+        /// Waits for the screen to be ready for access.
+        /// </summary>
+        public void WaitForSync()
+        {
+            _syncEvent.WaitOne();
+        }
+
+        public void Show()
+        {
+            ShowInternal();
         }
 
         public void ClearDisplay()
@@ -299,24 +321,15 @@ namespace imlac
             }
         }
 
-        private void InvokeDisplayThread()
-        {
-            _displayThread = new System.Threading.Thread(new System.Threading.ThreadStart(DisplayThread));
-            _displayThread.Start();
-           
-            //
-            // Wait until the display has been initialized.
-            //
-            _syncEvent = new AutoResetEvent(false);
-            _syncEvent.WaitOne();
-        }
-
-        private void DisplayThread()
+        private void ShowInternal()
         {
             InitializeSDL();
+
+            // Signal that the display is ready.
             _syncEvent.Set();
-        
-            while (true)
+
+            bool quit = false;        
+            while (!quit)
             {
                 SDL.SDL_Event e;
 
@@ -339,6 +352,7 @@ namespace imlac
                             break;
 
                         case SDL.SDL_EventType.SDL_QUIT:
+                            quit = true;
                             return;
 
                         case SDL.SDL_EventType.SDL_KEYDOWN:
@@ -353,6 +367,13 @@ namespace imlac
 
                 SDL.SDL_Delay(0);
             }
+
+            //
+            // Done, clean up.
+            //
+            SDL.SDL_DestroyRenderer(_sdlRenderer);
+            SDL.SDL_DestroyWindow(_sdlWindow);
+            SDL.SDL_Quit();
         }
 
         private void SdlKeyDown(SDL_Keycode key)
@@ -443,7 +464,7 @@ namespace imlac
             //
             // Wait for rendering to complete before returning.
             //
-            _syncEvent.WaitOne();
+            WaitForSync();
         }
        
         public void DoRender(bool completeFrame)
@@ -853,8 +874,6 @@ namespace imlac
             Render = 0,
             Resize
         }
-
-        private System.Threading.Thread _displayThread;        
 
         private AutoResetEvent _syncEvent;
         

@@ -47,8 +47,6 @@ namespace imlac
             _mem = _system.Memory;
             _instructionCache = new DisplayInstruction[Memory.Size];
             _dtStack = new Stack<ushort>(8);
-
-            Reset();
         }
 
         public void Reset()
