@@ -44,7 +44,7 @@ namespace imlac
 
         public static ushort Size
         {
-            get { return 8192; }
+            get { return 0x2000; }
         }
 
         public static ushort SizeMask

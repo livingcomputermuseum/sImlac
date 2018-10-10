@@ -159,10 +159,14 @@ namespace imlac.Debugger
                 // Get the command string from the prompt.
                 string command = _consolePrompt.Prompt().Trim();
 
-                if (command != String.Empty)
+                if (string.IsNullOrEmpty(command))
                 {
-                    next = ExecuteLine(command, system);
+                    command = _lastCommand;
                 }
+
+                next = ExecuteLine(command, system);
+            
+                _lastCommand = command;
             }
             catch (Exception e)
             {
@@ -685,5 +689,7 @@ namespace imlac.Debugger
         private DebuggerPrompt _consolePrompt;
         private DebuggerCommand _commandRoot;
         private List<DebuggerCommand> _commandList;
+
+        private string _lastCommand;
     }
 }

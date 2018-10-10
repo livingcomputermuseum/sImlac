@@ -92,6 +92,12 @@ namespace imlac.IO
                     _interruptStatus |= 0x0010;
                 }
 
+                // bit 10 - TTY send
+                if (_system.TTY.DataSendReady)
+                {
+                    _interruptStatus |= 0x0020;
+                }
+
                 // bit 2 - ACI-1 (clock)
                 if (_system.Clock.TimerTriggered)
                 {

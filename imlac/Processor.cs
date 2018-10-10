@@ -940,7 +940,7 @@ namespace imlac
                     {
                         opr = upperCodes[highIndex - 1];
                     }
-                    else
+                    else if (lowIndex != 0)
                     {
                         opr = lowerCodes[lowIndex - 1];
                     }

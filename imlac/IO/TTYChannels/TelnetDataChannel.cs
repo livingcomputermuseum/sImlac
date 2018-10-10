@@ -124,26 +124,33 @@ namespace imlac.IO.TTYChannels
         {
             //
             // Process incoming data
+            // TODO: this is terrible.
             //            
             int bytesRead = _tcpStream.EndRead(ar);
 
             for (int i = 0; i < bytesRead; )
             {
                 byte b = _asyncBuffer[i++];
-
-                /*
+                
                 if (b == IAC)
                 {
+                    // For now we just eat all option requests.
                     b = _asyncBuffer[i++];
 
                     switch(b)
                     {
                         case WILL:
+                        case WONT:
+                        case DO:
+                        case DONT:
+                            i++;
+                            break;
 
+                        default:
+                            break;
                     }
-
                 }
-                else */
+                else 
                 {
                     _inputBuffer.Enqueue(b);
                 }

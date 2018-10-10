@@ -69,19 +69,20 @@ namespace imlac.IO
                 if (_dataChannel.DataAvailable && !_dataReady)
                 {
                     _dataReady = true;
-                    _data = _dataChannel.Read();
+                    _rxData = _dataChannel.Read();
                     Trace.Log(LogType.TTY, "i");
                 }
             }
 
             // Are we waiting to send something?
-            if (!_dataSendReady && _dataChannel.OutputReady)
+            if (_dataBufferFull && _dataChannel.OutputReady)
             {
-                _dataChannel.Write(_data);
+                _dataChannel.Write(_txData);
                 Trace.Log(LogType.TTY, "o");
 
                 // Sent, reset flag.
                 _dataSendReady = true;
+                _dataBufferFull = false;
             }
         }
 
@@ -105,8 +106,8 @@ namespace imlac.IO
             switch (iotCode)
             {
                 case 0x19:  // RRB - TTY read     
-                    Trace.Log(LogType.TTY, "TTY read {0}", Helpers.ToOctal(_data));
-                    _system.Processor.AC |= _data;
+                    Trace.Log(LogType.TTY, "TTY read {0}", Helpers.ToOctal(_rxData));
+                    _system.Processor.AC |= _rxData;
                     break;
 
                 case 0x1a:  // RCF - Clear TTY status
@@ -114,30 +115,34 @@ namespace imlac.IO
                     break;
 
                 case 0x1b:  // RRC - Read and clear status
-                    Trace.Log(LogType.TTY, "TTY read {0}, status cleared.", Helpers.ToOctal(_data));
+                    Trace.Log(LogType.TTY, "TTY read {0}, status cleared.", Helpers.ToOctal(_rxData));
                     _dataReady = false;
-                    _system.Processor.AC |= _data;
+                    _system.Processor.AC |= _rxData;
                     break;
 
                 case 0x21:  // TPR - transmit
-                    if (_dataSendReady) // only if transmitter is ready
+                    if (_dataSendReady)
                     {
-                        _data = (byte)_system.Processor.AC;
-                        _dataSendReady = false;
+                        _txData = (byte)_system.Processor.AC;
+                        _dataBufferFull = true;
                     }
                     break;
 
                 case 0x22:  // TCF - clear output flag
-                    _dataSendReady = true;
-                    break;
-
-                case 0x23:  // TPC - print, clear flag
-                    _data = (byte)_system.Processor.AC;
                     _dataSendReady = false;
                     break;
 
+                case 0x23:  // TPC - print, clear flag
+                    if (_dataSendReady)
+                    {
+                        _txData = (byte)_system.Processor.AC;
+                        _dataSendReady = false;
+                        _dataBufferFull = true;
+                    }
+                    break;
+
                 default:
-                    Trace.Log(LogType.TTY, "Stub: TTY xmit op", Helpers.ToOctal(_data));
+                    Trace.Log(LogType.TTY, "Stub: TTY xmit op", Helpers.ToOctal(_rxData));
                     break;
             }
         }
@@ -146,7 +151,9 @@ namespace imlac.IO
 
         private bool _dataReady;
         private bool _dataSendReady;
-        private byte _data;
+        private bool _dataBufferFull;
+        private byte _rxData;
+        private byte _txData;
 
         private int _clocks;
         private readonly int _dataClocks = 100;

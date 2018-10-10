@@ -170,11 +170,10 @@ namespace imlac
             return SystemExecutionState.Running;
         }
 
-        [DebuggerFunction("step", "Executes a single instruction cycle at the specified address", "<address>")]
-        private SystemExecutionState StepProcessor(ushort address)
+        [DebuggerFunction("set pc", "Sets the Processor's PC to the specified address", "<address>")]
+        private SystemExecutionState SetPC(ushort address)
         {
             Processor.PC = address;
-            Processor.State = ProcessorState.Running;
             return SystemExecutionState.SingleStep;
         }
 
@@ -248,7 +247,7 @@ namespace imlac
             return SystemExecutionState.Debugging;
         }
 
-        [DebuggerFunction("display memory", "Displays memory contents", "<start> <length>")]
+        [DebuggerFunction("show memory", "Displays memory contents", "<start> <length>")]
         private SystemExecutionState DisplayMemory(ushort start, ushort length)
         {
             DumpMemory(start, length);
@@ -474,13 +473,14 @@ namespace imlac
         
         public void PrintProcessorStatus()
         {
-            Console.WriteLine("PC={0} AC={1} MB={2} - {3}",
+            Console.WriteLine("PC={0} AC={1} MB={2} - {3}\n{4}",
                 Helpers.ToOctal(Processor.PC),
                 Helpers.ToOctal(Processor.AC),
                 Helpers.ToOctal(Memory.Fetch(Processor.PC)),
-                Processor.State);
+                Processor.State,
+                Processor.Disassemble(Processor.PC));
 
-            Console.WriteLine("DPC={0} DT={1} DPCE={2} X={3} Y={4}\nMode={5} HalfWord={6} - {7}",
+            Console.WriteLine("DPC={0} DT={1} DPCE={2} X={3} Y={4}\nMode={5} HalfWord={6}",
                 Helpers.ToOctal(DisplayProcessor.PC),
                 Helpers.ToOctal(DisplayProcessor.DT),
                 Helpers.ToOctal(DisplayProcessor.DPCEntry),
@@ -561,9 +561,9 @@ namespace imlac
                 throw new InvalidOperationException(String.Format("Start address must be less than the size of system memory ({0}).", Helpers.ToOctal(Memory.Size)));
             }
 
-            ushort endAddress = (ushort)Math.Min(Memory.Size, startAddress + length);
+            ushort endAddress = (ushort)Math.Min(Memory.Size - 1, startAddress + length);
 
-            for (ushort address = startAddress; address <= endAddress; address++)
+            for (ushort address = startAddress; address < endAddress; address++)
             {
                 string disassembly = string.Empty;
                 try
