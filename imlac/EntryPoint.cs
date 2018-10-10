@@ -138,8 +138,11 @@ namespace imlac
                 }
                 catch (Exception e)
                 {
-                    Console.WriteLine("Internal error during execution: {0}", e.Message);
-                    _state = SystemExecutionState.Debugging;
+                    if (!(e is System.Threading.ThreadAbortException))
+                    {
+                        Console.WriteLine("Internal error during execution: {0}", e.Message);
+                        _state = SystemExecutionState.Debugging;
+                    }
                 }
             }
 

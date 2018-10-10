@@ -36,6 +36,7 @@ namespace imlac
         Interrupt =         0x10,
         TTY =               0x20,
         PTR =               0x40,
+        Telnet =            0x80,
         All =               0x7fffffff
     }
 
@@ -96,6 +97,10 @@ namespace imlac
 
                 case LogType.Interrupt:
                     color = ConsoleColor.Blue;
+                    break;
+
+                case LogType.Telnet:
+                    color = ConsoleColor.Cyan;
                     break;
                
                 default:

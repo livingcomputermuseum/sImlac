@@ -281,9 +281,28 @@ namespace imlac
 
             if (_sdlWindow != null)
             {
+                _lock.EnterWriteLock();
                 SDL.SDL_SetWindowSize(_sdlWindow, _xResolution, _yResolution);
                 SDL.SDL_SetWindowFullscreen(_sdlWindow,
                     _fullScreen ? (uint)SDL.SDL_WindowFlags.SDL_WINDOW_FULLSCREEN_DESKTOP : 0);
+
+                //
+                // Calculate x/y offsets to center display rendering
+                ///
+                int newWidth = 0;
+                int newHeight = 0;
+                SDL.SDL_GetWindowSize(_sdlWindow, out newWidth, out newHeight);
+
+                _xOffset = Math.Max(0, (newWidth - _xResolution) / 2);
+                _yOffset = Math.Max(0, (newHeight - _yResolution) / 2);
+
+                _displayRect.h = newHeight == 0 ? _yResolution : newHeight;
+                _displayRect.w = newWidth == 0 ? _xResolution : newWidth;
+
+                // Clear the display list so no garbage remains.
+                _displayListIndex = 0;
+
+                _lock.ExitWriteLock();
             }
         }
 
@@ -468,7 +487,8 @@ namespace imlac
         }
        
         public void DoRender(bool completeFrame)
-        {            
+        {
+
             // Draw the current set of vectors
             _lock.EnterReadLock();
             _frame++;
@@ -518,10 +538,10 @@ namespace imlac
             // The Imlac specifies 11 bits of resolution (2048 points in X and Y)
             // which corresponds to a _scaleFactor of 1.0.
             //
-            startX = (uint)(startX * _scaleFactor);
-            startY = (uint)(startY *_scaleFactor);
-            endX = (uint)(endX * _scaleFactor);
-            endY = (uint)(endY * _scaleFactor);
+            startX = (uint)(startX * _scaleFactor + _xOffset);
+            startY = (uint)(startY *_scaleFactor - _yOffset);
+            endX = (uint)(endX * _scaleFactor + _xOffset);
+            endY = (uint)(endY * _scaleFactor - _yOffset);
 
             _lock.EnterWriteLock();
 
@@ -883,6 +903,8 @@ namespace imlac
         private int _xResolution;
         private int _yResolution;
         private float _scaleFactor;
+        private int _xOffset;
+        private int _yOffset;
         private bool _renderCompleteFrame;
 
         private bool _fullScreen;

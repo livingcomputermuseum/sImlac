@@ -55,6 +55,7 @@
     <Compile Include="IO\TTYChannels\SerialDataChannel.cs" />
     <Compile Include="IO\TTYChannels\StreamDataChannel.cs" />
     <Compile Include="IO\TTYChannels\ISerialDataChannel.cs" />
+    <Compile Include="IO\TTYChannels\TelnetDataChannel.cs" />
     <Compile Include="SDLConsole.cs" />
     <Compile Include="DisplayProcessor.cs" />
     <Compile Include="Helpers.cs" />

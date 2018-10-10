@@ -50,6 +50,11 @@ namespace imlac.IO
                 throw new ArgumentNullException("channel");
             }
 
+            if (_dataChannel != null)
+            {
+                _dataChannel.Close();
+            }
+
             _dataChannel = channel;
         }
 
@@ -61,17 +66,12 @@ namespace imlac.IO
             {
                 _clocks = 0;
 
-                if (_dataChannel.DataAvailable)
+                if (_dataChannel.DataAvailable && !_dataReady)
                 {
                     _dataReady = true;
                     _data = _dataChannel.Read();
                     Trace.Log(LogType.TTY, "i");
                 }
-                else
-                {
-                    _dataReady = false;
-                }
-
             }
 
             // Are we waiting to send something?
