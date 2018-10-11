@@ -93,7 +93,7 @@ namespace imlac.IO
                 }
 
                 // bit 10 - TTY send
-                if (_system.TTY.DataSendReady)
+                if (_system.TTY.DataSentLatch)
                 {
                     _interruptStatus |= 0x0020;
                 }

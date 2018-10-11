@@ -621,7 +621,7 @@ namespace imlac
             private int _x2;
             private int _y2;
 
-            private static Color NormalColor = Color.FromArgb(196, Color.ForestGreen);
+            private static Color NormalColor = Color.FromArgb(48, Color.ForestGreen);
             private static Color PointColor = Color.FromArgb(255, Color.ForestGreen);
             private static Color SGRColor = Color.FromArgb(128, Color.ForestGreen);
             private static Color DebugColor = Color.FromArgb(255, Color.OrangeRed);
@@ -639,6 +639,7 @@ namespace imlac
             _sdlImlacKeymap.Add(SDL_Keycode.SDLK_TAB, ImlacKey.Tab);
             _sdlImlacKeymap.Add(SDL_Keycode.SDLK_RETURN, ImlacKey.CR);
             _sdlImlacKeymap.Add(SDL_Keycode.SDLK_PAGEUP, ImlacKey.FF);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_RIGHTBRACKET, ImlacKey.LF);
             _sdlImlacKeymap.Add(SDL_Keycode.SDLK_PAGEDOWN, ImlacKey.PageXmit);
             _sdlImlacKeymap.Add(SDL_Keycode.SDLK_HOME, ImlacKey.Home);
             _sdlImlacKeymap.Add(SDL_Keycode.SDLK_PAUSE, ImlacKey.Brk);
@@ -646,9 +647,9 @@ namespace imlac
             _sdlImlacKeymap.Add(SDL_Keycode.SDLK_SPACE, ImlacKey.Space);
 
             _sdlImlacKeymap.Add(SDL_Keycode.SDLK_COMMA, ImlacKey.Comma);
-            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_PLUS, ImlacKey.Minus);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_EQUALS, ImlacKey.Minus);
             _sdlImlacKeymap.Add(SDL_Keycode.SDLK_PERIOD, ImlacKey.Period);
-            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_QUESTION, ImlacKey.Slash);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_SLASH, ImlacKey.Slash);
             _sdlImlacKeymap.Add(SDL_Keycode.SDLK_0, ImlacKey.K0);
             _sdlImlacKeymap.Add(SDL_Keycode.SDLK_1, ImlacKey.K1);
             _sdlImlacKeymap.Add(SDL_Keycode.SDLK_2, ImlacKey.K2);
@@ -667,7 +668,7 @@ namespace imlac
             _sdlImlacKeymap.Add(SDL_Keycode.SDLK_KP_4, ImlacKey.D4);
             _sdlImlacKeymap.Add(SDL_Keycode.SDLK_KP_5, ImlacKey.D5);
             _sdlImlacKeymap.Add(SDL_Keycode.SDLK_KP_6, ImlacKey.D6);
-            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_QUOTEDBL, ImlacKey.Unlabeled);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_QUOTE, ImlacKey.Unlabeled);
 
             _sdlImlacKeymap.Add(SDL_Keycode.SDLK_a, ImlacKey.A);
             _sdlImlacKeymap.Add(SDL_Keycode.SDLK_b, ImlacKey.B);
@@ -697,6 +698,8 @@ namespace imlac
             _sdlImlacKeymap.Add(SDL_Keycode.SDLK_z, ImlacKey.Z);
 
             _sdlImlacKeymap.Add(SDL_Keycode.SDLK_DELETE, ImlacKey.Del);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_BACKSPACE, ImlacKey.Del);
+            _sdlImlacKeymap.Add(SDL_Keycode.SDLK_BACKSLASH, ImlacKey.Brk);
 
             _sdlVKeymap = new Dictionary<SDL_Keycode, VKeys>();
 

@@ -39,6 +39,7 @@ namespace imlac.IO
         Tab = 0x9,
         CR = 0x0d,
         FF = 0x0c,
+        LF = 0x0a,
         PageXmit = 0xe,
         Home = 0xf,
         Brk = 0x19,
@@ -255,6 +256,7 @@ namespace imlac.IO
             AddMapping(ImlacKey.Tab, 0x9, 0x0);
             AddMapping(ImlacKey.CR, 0x0d, 0x0);
             AddMapping(ImlacKey.FF, 0x0c, 0x0);
+            AddMapping(ImlacKey.LF, 0x0a, 0x0);
             AddMapping(ImlacKey.PageXmit, 0xe, 0x0);
             AddMapping(ImlacKey.Home, 0xf, 0x0);
             AddMapping(ImlacKey.Brk, 0x19, 0x0);

@@ -79,10 +79,8 @@ namespace imlac.IO
             {
                 _dataChannel.Write(_txData);
                 Trace.Log(LogType.TTY, "o");
-
-                // Sent, reset flag.
-                _dataSendReady = true;
                 _dataBufferFull = false;
+                _dataSentLatch = true;
             }
         }
 
@@ -94,6 +92,16 @@ namespace imlac.IO
         public bool DataSendReady
         {
             get { return _dataSendReady; }
+        }
+
+        public bool DataSentLatch
+        {
+            get
+            {
+                bool latch = _dataSentLatch;
+                _dataSentLatch = false;
+                return latch;
+            }
         }
 
         public int[] GetHandledIOTs()
@@ -124,19 +132,20 @@ namespace imlac.IO
                     if (_dataSendReady)
                     {
                         _txData = (byte)_system.Processor.AC;
+                        _dataSendReady = false;
                         _dataBufferFull = true;
                     }
                     break;
 
                 case 0x22:  // TCF - clear output flag
-                    _dataSendReady = false;
+                    _dataSendReady = true;
                     break;
 
                 case 0x23:  // TPC - print, clear flag
                     if (_dataSendReady)
                     {
                         _txData = (byte)_system.Processor.AC;
-                        _dataSendReady = false;
+                        _dataSendReady = true;
                         _dataBufferFull = true;
                     }
                     break;
@@ -152,6 +161,7 @@ namespace imlac.IO
         private bool _dataReady;
         private bool _dataSendReady;
         private bool _dataBufferFull;
+        private bool _dataSentLatch;
         private byte _rxData;
         private byte _txData;
 
