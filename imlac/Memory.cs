@@ -44,13 +44,13 @@ namespace imlac
 
         public static ushort Size
         {
-            get { return 0x2000; }
+            get { return 0x4000; }
         }
 
         public static ushort SizeMask
         {
-            get { return 0x1fff; }
-        }
+            get { return 0x3fff; }
+        }       
 
         private ushort[] _mem;
         private ImlacSystem _system;

@@ -579,7 +579,7 @@ namespace imlac
 
         private ushort GetEffectiveAddress(ushort baseAddress)
         {
-            return (ushort)((_pc & 0x1800) | (baseAddress & 0x07ff));
+            return (ushort)((_pc & (Memory.SizeMask & 0xf800)) | (baseAddress & 0x07ff));
         }
 
         private void DoStoreForCurrentInstruction(ushort word)

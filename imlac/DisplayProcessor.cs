@@ -54,7 +54,7 @@ namespace imlac
             State = ProcessorState.Halted;
             _mode = DisplayProcessorMode.Processor;
             _pc = 0;
-            _block = 0;            
+            _block = 0;
             _dtStack.Clear();
             X = 0;
             Y = 0;
@@ -77,7 +77,7 @@ namespace imlac
             { 
                 _pc = value;
                 // block is set whenever DPC is set by the main processor
-                _block = (ushort)(value & 0x1000);
+                _block = (ushort)(value & 0x3000);
 
                 if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "DPC set to {0} (block {1})", Helpers.ToOctal(_pc), Helpers.ToOctal(_block));
             }
@@ -362,19 +362,7 @@ namespace imlac
                             break;
 
                         case 0x2:
-                            switch (c)
-                            {
-                                case 0:
-                                    _block = 0x0000;
-                                    break;
-
-                                case 1:
-                                    _block = 0x1000;
-                                    break;
-
-                                default:
-                                    throw new NotImplementedException("Unimplemented DSTB call -- code may expect > 8KW of memory.");
-                            }
+                            _block = (ushort)(c << 12);
                             break;
 
                         case 0x3:
