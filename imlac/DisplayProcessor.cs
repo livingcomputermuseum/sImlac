@@ -45,8 +45,8 @@ namespace imlac
         {
             _system = system;
             _mem = _system.Memory;
-            _instructionCache = new DisplayInstruction[Memory.Size];
             _dtStack = new Stack<ushort>(8);
+            InitializeCache();
         }
 
         public void Reset()
@@ -154,6 +154,11 @@ namespace imlac
         public ushort DPCEntry
         {
             get { return _dpcEntry; }
+        }
+
+        public void InitializeCache()
+        {
+            _instructionCache = new DisplayInstruction[Memory.Size];
         }
 
         public void InvalidateCache(ushort address)

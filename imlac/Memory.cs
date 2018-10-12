@@ -15,15 +15,39 @@
     along with sImlac.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+using System;
+
 namespace imlac
 {
-    // TODO: make memory size configurable.
     public class Memory
     {
         public Memory(ImlacSystem system)
-        {
-            _mem = new ushort[Size];
+        {            
             _system = system;
+            SetMemorySize(0x2000);
+        }
+
+        public void SetMemorySize(ushort size)
+        {
+            if (size != 0x1000 && size != 0x2000 && size != 0x4000)
+            {
+                throw new InvalidOperationException("Size must be 4k, 8k, or 16k.");
+            }
+
+            _size = size;
+            _sizeMask = (ushort)(size - 1);
+
+            _mem = new ushort[Size];
+
+            if (_system.Processor != null)
+            {
+                _system.Processor.InitializeCache();
+            }
+
+            if (_system.DisplayProcessor != null)
+            {
+                _system.DisplayProcessor.InitializeCache();
+            }
         }
 
         public ushort Fetch(ushort address)
@@ -44,13 +68,16 @@ namespace imlac
 
         public static ushort Size
         {
-            get { return 0x4000; }
+            get { return _size; }
         }
 
         public static ushort SizeMask
         {
-            get { return 0x3fff; }
-        }       
+            get { return _sizeMask; }
+        }
+
+        private static ushort _size;
+        private static ushort _sizeMask;
 
         private ushort[] _mem;
         private ImlacSystem _system;

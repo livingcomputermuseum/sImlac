@@ -43,11 +43,11 @@ namespace imlac
         {
             _system = system;
             _mem = _system.Memory;
-            _instructionCache = new Instruction[Memory.Size];            
 
             _iotDispatch = new IIOTDevice[0x200];   // 9 bits of IOT instructions
 
             Reset();
+            InitializeCache();
         }
 
         public void Reset()
@@ -117,6 +117,11 @@ namespace imlac
         public string Disassemble(ushort address)
         {
             return GetCachedInstruction(address).Disassemble(address);
+        }
+
+        public void InitializeCache()
+        {
+            _instructionCache = new Instruction[Memory.Size];
         }
 
         public void InvalidateCache(ushort address)
@@ -578,7 +583,7 @@ namespace imlac
         }
 
         private ushort GetEffectiveAddress(ushort baseAddress)
-        {
+        {            
             return (ushort)((_pc & (Memory.SizeMask & 0xf800)) | (baseAddress & 0x07ff));
         }
 

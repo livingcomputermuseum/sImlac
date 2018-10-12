@@ -166,7 +166,7 @@ namespace imlac.IO
         private byte _txData;
 
         private int _clocks;
-        private readonly int _dataClocks = 100;
+        private readonly int _dataClocks = 250;
 
         private ISerialDataChannel _dataChannel;
 

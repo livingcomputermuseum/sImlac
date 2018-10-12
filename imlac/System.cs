@@ -254,6 +254,29 @@ namespace imlac
             return SystemExecutionState.Debugging;
         }
 
+        [DebuggerFunction("set memory size 4kw", "Sets memory size to 4KW")]
+        private SystemExecutionState SetMemorySize4kw()
+        {
+            _memory.SetMemorySize(0x1000);
+            return SystemExecutionState.Debugging;
+        }
+
+
+        [DebuggerFunction("set memory size 8kw", "Sets memory size to 8KW")]
+        private SystemExecutionState SetMemorySize8kw()
+        {
+            _memory.SetMemorySize(0x2000);
+            return SystemExecutionState.Debugging;
+        }
+
+
+        [DebuggerFunction("set memory size 16kw", "Sets memory size to 16KW")]
+        private SystemExecutionState SetMemorySize16kw()
+        {
+            _memory.SetMemorySize(0x4000);
+            return SystemExecutionState.Debugging;
+        }
+
         [DebuggerFunction("set logging", "Sets the logging configuration", "<loglevel>")]
         private SystemExecutionState SetLogging(LogType value)
         {
