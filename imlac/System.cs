@@ -584,7 +584,7 @@ namespace imlac
                 throw new InvalidOperationException(String.Format("Start address must be less than the size of system memory ({0}).", Helpers.ToOctal(Memory.Size)));
             }
 
-            ushort endAddress = (ushort)Math.Min(Memory.Size - 1, startAddress + length);
+            ushort endAddress = (ushort)Math.Min(Memory.Size, startAddress + length);
 
             for (ushort address = startAddress; address < endAddress; address++)
             {

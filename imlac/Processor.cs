@@ -920,8 +920,8 @@ namespace imlac
             {
                 string opr = String.Empty;
 
-                string[] lowerCodes = { "CLA", "CMA", "STA", "IAC", "COA", "CIA", "CMA, IAC", "CLA, CMA, IAC" };
-                string[] upperCodes = { "CLL", "CML", "STL", "ODA", "CLL, CML", "CML, ODA", "CLL, CML", "CLL, CML, ODA" };
+                string[] lowerCodes = { "NOP", "CLA", "CMA", "STA", "IAC", "COA", "CIA", "CMA, IAC", "CLA, CMA, IAC" };
+                string[] upperCodes = { "", "CLL", "CML", "STL", "ODA", "CLL, CML", "CML, ODA", "CLL, CML", "CLL, CML, ODA" };
 
                 // check for two specially named combinations of upper and lower bits:
                 if (Data == 0x9)
@@ -943,11 +943,11 @@ namespace imlac
                     }
                     else if (highIndex != 0)
                     {
-                        opr = upperCodes[highIndex - 1];
+                        opr = upperCodes[highIndex];
                     }
                     else if (lowIndex != 0)
                     {
-                        opr = lowerCodes[lowIndex - 1];
+                        opr = lowerCodes[lowIndex];
                     }
                 }
 
