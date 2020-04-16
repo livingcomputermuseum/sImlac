@@ -76,8 +76,12 @@ namespace imlac
             set 
             { 
                 _pc = value;
-                // block is set whenever DPC is set by the main processor
-                _block = (ushort)(value & 0x3000);
+
+                if (!ImlacSystem.MitMode)
+                {
+                    // block is set whenever DPC is set by the main processor                
+                    _block = (ushort)(value & 0x3000);
+                }
 
                 if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "DPC set to {0} (block {1})", Helpers.ToOctal(_pc), Helpers.ToOctal(_block));
             }
@@ -367,7 +371,11 @@ namespace imlac
                             break;
 
                         case 0x2:
-                            _block = (ushort)(c << 12);
+                            if (!ImlacSystem.MitMode)
+                            {
+                                // Only on non-MIT modded systems
+                                _block = (ushort)(c << 12);
+                            }
                             break;
 
                         case 0x3:
@@ -380,7 +388,14 @@ namespace imlac
                     break;
 
                 case DisplayOpcode.DLXA:
-                    X = (uint)(instruction.Data << 1);
+                    if (ImlacSystem.ProcessorType == ImlacSystem.ImlacCPUType.PDS4)
+                    {
+                        X = instruction.Data;
+                    }
+                    else
+                    {
+                        X = (uint)(instruction.Data << 1);
+                    }
 
                     DrawingMode mode;
                     if (_sgrModeOn && _sgrBeamOn)
@@ -407,7 +422,15 @@ namespace imlac
                     break;
 
                 case DisplayOpcode.DLYA:
-                    Y = (uint)(instruction.Data << 1);
+                    if (ImlacSystem.ProcessorType == ImlacSystem.ImlacCPUType.PDS4)
+                    {
+                        Y = instruction.Data;
+                    }
+                    else
+                    {
+                        Y = (uint)(instruction.Data << 1);
+                    }
+
                     if (_sgrModeOn && _sgrBeamOn)
                     {
                         if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "SGR-1 Y set to {0}", Y);
@@ -772,12 +795,29 @@ namespace imlac
 
                     case 0x01:
                         _opcode = DisplayOpcode.DLXA;
-                        _data = (ushort)(_word & 0x3ff);
+
+                        if (ImlacSystem.ProcessorType == ImlacSystem.ImlacCPUType.PDS4)
+                        {
+                            //The PDS-4 provides 11 bits of resolution
+                            _data = (ushort)(_word & 0x7ff);
+                        }
+                        else
+                        {
+                            _data = (ushort)(_word & 0x3ff);
+                        }
                         break;
 
                     case 0x02:
                         _opcode = DisplayOpcode.DLYA;
-                        _data = (ushort)(_word & 0x3ff);
+
+                        if (ImlacSystem.ProcessorType == ImlacSystem.ImlacCPUType.PDS4)
+                        {
+                            _data = (ushort)(_word & 0x7ff);
+                        }
+                        else
+                        {
+                            _data = (ushort)(_word & 0x3ff);
+                        }
                         break;
 
                     case 0x03:
@@ -792,17 +832,29 @@ namespace imlac
 
                     case 0x04:
                         _opcode = DisplayOpcode.DLVH;
-                        _data = (ushort)(_word & 0xfff);
+                        _data = (ushort)(_word & 0xfff);                        
                         break;
 
                     case 0x05:
                         _opcode = DisplayOpcode.DJMS;
                         _data = (ushort)(_word & 0xfff);
+
+                        if (ImlacSystem.MitMode && (_word & 0x8000) != 0)
+                        {
+                            // MIT's mod takes the MSB of the address from the MSB of the instruction word
+                            _data |= 0x1000;
+                        }
                         break;
 
                     case 0x06:
                         _opcode = DisplayOpcode.DJMP;
                         _data = (ushort)(_word & 0xfff);
+
+                        if (ImlacSystem.MitMode && (_word & 0x8000) != 0)
+                        {
+                            // MIT's mod takes the MSB of the address from the MSB of the instruction word
+                            _data |= 0x1000;
+                        }
                         break;
 
                     case 0x07:
