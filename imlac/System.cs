@@ -336,7 +336,14 @@ namespace imlac
         [DebuggerFunction("attach tty telnet", "Attaches the Imlac's TTY to a raw telnet port", "<host> <port>")]
         private SystemExecutionState AttachTTY(string host, ushort port)
         {
-            TTY.SetChannel(new TelnetDataChannel(host, port));
+            TTY.SetChannel(new TelnetDataChannel(host, port, false));
+            return SystemExecutionState.Debugging;
+        }
+
+        [DebuggerFunction("attach tty raw", "Attaches the Imlac's TTY to a raw port", "<host> <port>")]
+        private SystemExecutionState AttachTTYRaw(string host, ushort port)
+        {
+            TTY.SetChannel(new TelnetDataChannel(host, port, true));
             return SystemExecutionState.Debugging;
         }
 

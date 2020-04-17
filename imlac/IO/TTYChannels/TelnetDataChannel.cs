@@ -3,20 +3,21 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net.Sockets;
 using System.Text;
+using System.Threading;
 
 namespace imlac.IO.TTYChannels
 {
 
     public class TelnetDataChannel : ISerialDataChannel
     {
-        public TelnetDataChannel(string server, int port)
+        public TelnetDataChannel(string server, int port, bool raw)
         {
             //
             // Try to open the channel.
             //
             try
             {
-                _telnetStream = new TelnetStream(server, port);
+                _telnetStream = new TelnetStream(server, port, raw);
             }
             catch(Exception e)
             {
@@ -74,13 +75,16 @@ namespace imlac.IO.TTYChannels
 
     public class TelnetStream
     {
-        public TelnetStream(string host, int port)
+        public TelnetStream(string host, int port, bool raw)
         {
             _tcpClient = new TcpClient(host, port);
             _tcpStream = _tcpClient.GetStream();
+            _raw = raw;
 
             _asyncBuffer = new byte[2048];
             _inputBuffer = new Queue<byte>();
+
+            _bufferLock = new ReaderWriterLockSlim();
 
             //
             // Kick off reading from the stream, asynchronously.
@@ -94,7 +98,16 @@ namespace imlac.IO.TTYChannels
 
         public bool DataAvailable
         {
-            get { return _inputBuffer.Count > 0; }
+            get
+            {
+                bool avail = false;
+                _bufferLock.EnterReadLock();
+                avail = _inputBuffer.Count > 0;
+                _bufferLock.ExitReadLock();
+
+                return avail;
+            }
+
         }
 
         public void Close()
@@ -105,14 +118,18 @@ namespace imlac.IO.TTYChannels
 
         public byte ReadByte()
         {
+            byte b = 0;
+            _bufferLock.EnterUpgradeableReadLock();
             if (_inputBuffer.Count > 0)
             {
-                return _inputBuffer.Dequeue();
+                _bufferLock.EnterWriteLock();
+                b = _inputBuffer.Dequeue();
+                _bufferLock.ExitWriteLock();
             }
-            else
-            {
-                return 0;
-            }
+
+            _bufferLock.ExitUpgradeableReadLock();
+
+            return b;
         }
 
         public void WriteByte(byte b)
@@ -124,7 +141,7 @@ namespace imlac.IO.TTYChannels
         {
             //
             // Process incoming data
-            // TODO: this is terrible.
+            // TODO: The telnet processing is terrible.
             //            
             int bytesRead = _tcpStream.EndRead(ar);
 
@@ -132,7 +149,7 @@ namespace imlac.IO.TTYChannels
             {
                 byte b = _asyncBuffer[i++];
                 
-                if (b == IAC)
+                if (!_raw && b == IAC)
                 {
                     // For now we just eat all option requests.
                     b = _asyncBuffer[i++];
@@ -152,7 +169,9 @@ namespace imlac.IO.TTYChannels
                 }
                 else 
                 {
+                    _bufferLock.EnterWriteLock();
                     _inputBuffer.Enqueue(b);
+                    _bufferLock.ExitWriteLock();
                 }
             }
 
@@ -179,5 +198,8 @@ namespace imlac.IO.TTYChannels
 
         private TcpClient _tcpClient;
         private NetworkStream _tcpStream;
+        private bool _raw;
+
+        private ReaderWriterLockSlim _bufferLock;
     }
 }
