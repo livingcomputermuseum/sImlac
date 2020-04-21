@@ -141,6 +141,7 @@ namespace imlac.IO
         {
             //
             // Dispatch the IOT instruction.
+            // TODO: handle PDS-4 IOTs.
             //
             switch (iotCode)
             {
@@ -180,10 +181,18 @@ namespace imlac.IO
         
         private readonly int[] _handledIOTs = 
             { 
-                0x41,       // read interrupt status bits
+                0x41,       // read interrupt status bits                
                 0x61,       // arm/disarm devices (set interrupt mask)
                 0x71,       // IOF (disable interrupts)
                 0x72,       // ION (enabled masked interrupts)
+
+                // PDS-4 2nd level interrupt facility
+                0x42,       // read interrupt status bits word two
+                0x89,       // Read 2nd Level Interrupt status
+                0x91,       // Disable 2nd Level Interrupts
+                0x92,       // Enable 2nd Level Interrupts
+                0x93,       // Disable, then Enable
+
             };        
     }
 }

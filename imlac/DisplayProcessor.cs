@@ -60,6 +60,8 @@ namespace imlac
             Y = 0;
             _scale = 1.0f;
 
+            _dadr = false;
+
             _sgrModeOn = false;
             _sgrBeamOn = false;
             _sgrDJRMOn = false;
@@ -77,11 +79,8 @@ namespace imlac
             { 
                 _pc = value;
 
-                if (!ImlacSystem.MitMode)
-                {
-                    // block is set whenever DPC is set by the main processor                
-                    _block = (ushort)(value & 0x3000);
-                }
+                // block is set whenever DPC is set by the main processor
+                _block = (ushort)(value & 0x3000);
 
                 if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "DPC set to {0} (block {1})", Helpers.ToOctal(_pc), Helpers.ToOctal(_block));
             }
@@ -160,6 +159,29 @@ namespace imlac
             get { return _dpcEntry; }
         }
 
+        //
+        // Push and Pop are used on the PDS-4 to allow the main processor control of the 
+        // DPC stack.  (Called the MDS on the PDS-4)
+        //
+        public void Push()
+        {
+            _dtStack.Push((ushort)(_pc + 1));
+            if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "DT stack push {0}, depth is now {1}", Helpers.ToOctal((ushort)(_pc + 1)), _dtStack.Count);
+        }
+
+        public void Pop()
+        {
+            if (_dtStack.Count > 0)
+            {
+                _pc = _dtStack.Pop();
+                if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "DT stack pop {0}, depth is now {1}", Helpers.ToOctal(_pc), _dtStack.Count);
+            }
+            else
+            {
+                if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "DT stack empty on pop!  Leaving DPC undisturbed at {0}", Helpers.ToOctal(_pc));
+            }
+        }
+
         public void InitializeCache()
         {
             _instructionCache = new DisplayInstruction[Memory.Size];
@@ -227,15 +249,39 @@ namespace imlac
             //
             switch (iotCode)
             {
-                case 0x03:      // load DPC with main processor's AC
+                case 0x01:      // PDS-4: DLA: load DPC with main processor's AC
+                case 0x03:      // PDS-1: DLA: load DPC with main processor's AC, or
+                                // PDS-4: DLA *and* Turn DP on.
+                    
                     PC = _system.Processor.AC;
 
                     // this is for debugging only, we keep track of the load address
                     // to make it easy to see where the main Display List starts
                     _dpcEntry = PC;
+
+                    if (iotCode == 0x03 && Configuration.CPUType == ImlacCPUType.PDS4)
+                    {
+                        State = ProcessorState.Running;
+                        // MIT DADR bit gets reset when display is started.
+                        _dadr = false;
+                    }
                     break;
 
-                case 0x0a:      // halt display processor
+                case 0x02:      // PDS-4: turn DP On.
+                    if (Configuration.CPUType == ImlacCPUType.PDS4)
+                    {
+                        State = ProcessorState.Running;
+                        // MIT DADR bit gets reset when display is started.
+                        _dadr = false;
+                    }
+                    else
+                    {
+                        // Just for debugging's sake right now.
+                        throw new InvalidOperationException("DON IOT on PDS-1");
+                    }
+                    break;
+
+                case 0x0a:      // PDS-1 and PDS-4: halt display processor
                     State = ProcessorState.Halted;
                     break;
 
@@ -244,7 +290,11 @@ namespace imlac
                     break;
 
                 case 0xc4:      // clear halt state
-                    State = ProcessorState.Running;
+                    // TODO: what does this actually do?
+                    //State = ProcessorState.Running;
+
+                    // MIT DADR bit gets reset when display is started.
+                    _dadr = false;
                     break;
 
                 default:
@@ -267,15 +317,29 @@ namespace imlac
                     break;
 
                 case DisplayOpcode.DJMP:
-                    _pc = (ushort)(instruction.Data | _block);
+                    if (!_dadr)
+                    {
+                        // DADR off, use only 12 bits
+                        _pc = (ushort)((instruction.Data & 0xfff) | _block);
+                    }
+                    else
+                    {
+                        _pc = (ushort)(instruction.Data | _block);
+                    }
                     break;
 
                 case DisplayOpcode.DJMS:
-                    _dtStack.Push((ushort)(_pc + 1));
+                    Push();                    
 
-                    if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "DT stack push {0}, depth is now {1}", Helpers.ToOctal((ushort)(_pc + 1)), _dtStack.Count);
-
-                    _pc = (ushort)(instruction.Data | _block); 
+                    if (!_dadr)
+                    {
+                        // DADR off, use only 12 bits
+                        _pc = (ushort)((instruction.Data & 0xfff) | _block);
+                    }
+                    else
+                    {
+                        _pc = (ushort)(instruction.Data | _block);
+                    }
                     break;
 
                 case DisplayOpcode.DOPR:
@@ -352,7 +416,11 @@ namespace imlac
                     switch (f)
                     {
                         case 0x0:
-                            // nothing
+                            // if bit 15 is set, the MIT mods flip the DADR bit.
+                            if (Configuration.MITMode && (c == 1))
+                            {
+                                _dadr = !_dadr;
+                            }
                             break;
 
                         case 0x1:
@@ -371,11 +439,7 @@ namespace imlac
                             break;
 
                         case 0x2:
-                            if (!ImlacSystem.MitMode)
-                            {
-                                // Only on non-MIT modded systems
-                                _block = (ushort)(c << 12);
-                            }
+                            _block = (ushort)(c << 12);
                             break;
 
                         case 0x3:
@@ -388,7 +452,7 @@ namespace imlac
                     break;
 
                 case DisplayOpcode.DLXA:
-                    if (ImlacSystem.ProcessorType == ImlacSystem.ImlacCPUType.PDS4)
+                    if (Configuration.CPUType == ImlacCPUType.PDS4)
                     {
                         X = instruction.Data;
                     }
@@ -422,7 +486,7 @@ namespace imlac
                     break;
 
                 case DisplayOpcode.DLYA:
-                    if (ImlacSystem.ProcessorType == ImlacSystem.ImlacCPUType.PDS4)
+                    if (Configuration.CPUType == ImlacCPUType.PDS4)
                     {
                         Y = instruction.Data;
                     }
@@ -632,15 +696,7 @@ namespace imlac
 
         private void ReturnFromDisplaySubroutine()
         {
-            if (_dtStack.Count > 0)
-            {
-                _pc = _dtStack.Pop();
-                if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "DT stack pop {0}, depth is now {1}", Helpers.ToOctal(_pc), _dtStack.Count);
-            }
-            else
-            {
-                if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "DT stack empty on pop!  Leaving DPC undisturbed at {0}", Helpers.ToOctal(_pc));
-            }
+            Pop();
         }
 
         private DisplayInstruction GetCachedInstruction(ushort address, DisplayProcessorMode mode)
@@ -661,6 +717,9 @@ namespace imlac
         private Stack<ushort> _dtStack;
         private ushort _dpcEntry;
 
+        // MIT DADR (display addressing) flag.
+        private bool _dadr;
+
         // SGR-1 mode switches
         private bool _sgrModeOn; 
         private bool _sgrDJRMOn; 
@@ -679,7 +738,7 @@ namespace imlac
         private Memory _mem;
         private DisplayInstruction[] _instructionCache;
 
-        private readonly int[] _handledIOTs = { 0x3, 0xa, 0x39, 0xc4 };
+        private readonly int[] _handledIOTs = { 0x1, 0x2, 0x3, 0xa, 0x39, 0xc4 };
 
         private enum DisplayOpcode
         {
@@ -796,7 +855,7 @@ namespace imlac
                     case 0x01:
                         _opcode = DisplayOpcode.DLXA;
 
-                        if (ImlacSystem.ProcessorType == ImlacSystem.ImlacCPUType.PDS4)
+                        if (Configuration.CPUType == ImlacCPUType.PDS4)
                         {
                             //The PDS-4 provides 11 bits of resolution
                             _data = (ushort)(_word & 0x7ff);
@@ -810,7 +869,7 @@ namespace imlac
                     case 0x02:
                         _opcode = DisplayOpcode.DLYA;
 
-                        if (ImlacSystem.ProcessorType == ImlacSystem.ImlacCPUType.PDS4)
+                        if (Configuration.CPUType == ImlacCPUType.PDS4)
                         {
                             _data = (ushort)(_word & 0x7ff);
                         }
@@ -832,14 +891,14 @@ namespace imlac
 
                     case 0x04:
                         _opcode = DisplayOpcode.DLVH;
-                        _data = (ushort)(_word & 0xfff);                        
+                        _data = (ushort)(_word & 0xfff);
                         break;
 
                     case 0x05:
                         _opcode = DisplayOpcode.DJMS;
                         _data = (ushort)(_word & 0xfff);
 
-                        if (ImlacSystem.MitMode && (_word & 0x8000) != 0)
+                        if (Configuration.MITMode && (_word & 0x8000) != 0)
                         {
                             // MIT's mod takes the MSB of the address from the MSB of the instruction word
                             _data |= 0x1000;
@@ -850,7 +909,7 @@ namespace imlac
                         _opcode = DisplayOpcode.DJMP;
                         _data = (ushort)(_word & 0xfff);
 
-                        if (ImlacSystem.MitMode && (_word & 0x8000) != 0)
+                        if (Configuration.MITMode && (_word & 0x8000) != 0)
                         {
                             // MIT's mod takes the MSB of the address from the MSB of the instruction word
                             _data |= 0x1000;
@@ -979,7 +1038,7 @@ namespace imlac
                 string ret = String.Empty;
                 if (_opcode == DisplayOpcode.DOPR)
                 {                    
-                    string[] codes = { "INV0 ", "INV1 ", "INV2 ", "INV3 ", "DDSP ", "DRJM ", "DDYM ", "DDXM ", "DIYM ", "DIXM ", "DHVC ", "DHLT " };                    
+                    string[] codes = { "INV0 ", "INV1 ", "INV2 ", "INV3 ", "DDSP ", "DRJM ", "DDYM ", "DDXM ", "DIYM ", "DIXM ", "DHVC ", "DHLT " };
 
                     for (int i = 4; i < 12; i++)
                     {
@@ -1002,6 +1061,10 @@ namespace imlac
                     {
                         case 0x0:
                             // nothing
+                            if (c == 1)
+                            {
+                                ret += String.Format("DADR");
+                            }
                             break;
 
                         case 0x1:

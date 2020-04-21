@@ -34,7 +34,7 @@ namespace imlac
         UntilDisplayStart,
         Running,
         Quit
-    }    
+    }
 
     public class ImlacSystem
     {
@@ -56,12 +56,6 @@ namespace imlac
             _processor.RegisterDeviceIOTs(_keyboard);
             _processor.RegisterDeviceIOTs(_clock);
             _processor.RegisterDeviceIOTs(_interruptFacility);
-        }
-
-        static ImlacSystem()
-        {
-            _cpuType = ImlacCPUType.PDS1;
-            _mitMode = false;
         }
 
         public void Reset()
@@ -128,21 +122,6 @@ namespace imlac
         public InterruptFacility InterruptFacility
         {
             get { return _interruptFacility; }
-        }
-
-        /// <summary>
-        /// TODO: move to configurable thing.
-        /// Indicates whether the system has MIT Mods for display block addressing
-        /// and display coordinates.
-        /// </summary>
-        public static bool MitMode
-        {
-            get { return _mitMode; }
-        }
-
-        public static ImlacCPUType ProcessorType
-        {
-            get { return _cpuType; }
         }
 
         public void SingleStep()
@@ -514,24 +493,25 @@ namespace imlac
             return SystemExecutionState.Debugging;
         }
 
-        [DebuggerFunction("enable mit mode", "Turns MIT modifications on or off", "<mode>")]
-        private SystemExecutionState EnableMITMode(bool enable)
+        [DebuggerFunction("enable mit mode", "Turns MIT modifications on.")]
+        private SystemExecutionState EnableMITMode()
         {
-            _mitMode = enable;
+            Configuration.MITMode = true;
+            return SystemExecutionState.Debugging;
+        }
+
+        [DebuggerFunction("disable mit mode", "Turns MIT modifications on.")]
+        private SystemExecutionState DisableMITMode()
+        {
+            Configuration.MITMode = false;
             return SystemExecutionState.Debugging;
         }
 
         [DebuggerFunction("set cpu type", "Selects CPU type: PDS1 or PDS4", "<cpu>")]
         private SystemExecutionState SetMITMode(ImlacCPUType type)
         {
-            _cpuType = type;
+            Configuration.CPUType = type;
             return SystemExecutionState.Debugging;
-        }
-
-        public enum ImlacCPUType
-        {
-            PDS1,
-            PDS4,
         }
 
         public enum DisassemblyMode
@@ -721,11 +701,5 @@ namespace imlac
         private Keyboard _keyboard;
         private InterruptFacility _interruptFacility;
         private AddressableClock _clock;
-
-        //
-        // Static System configuration parameters
-        //
-        private static bool _mitMode;
-        private static ImlacCPUType _cpuType;
     }
 }

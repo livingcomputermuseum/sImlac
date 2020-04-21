@@ -116,7 +116,20 @@ namespace imlac
 
         public string Disassemble(ushort address)
         {
-            return GetCachedInstruction(address).Disassemble(address);
+            string disassembly;
+
+            try
+            {
+                disassembly = GetCachedInstruction(address).Disassemble(address);
+            }
+            catch
+            {
+                // We had some trouble; present as undecodable
+                disassembly = String.Format("Invalid instruction {0}",
+                    Helpers.ToOctal(_mem.Fetch((ushort)(address & Memory.SizeMask))));
+            }
+
+            return disassembly;
         }
 
         public void InitializeCache()
@@ -215,6 +228,9 @@ namespace imlac
         {
             ushort q;
             uint res;
+
+            if (Trace.TraceOn) Trace.Log(LogType.Processor, "{0} - {1}", _pc, _currentInstruction.Disassemble(_pc));
+
             switch (_currentInstruction.Opcode)
             {
                 case Opcode.ADD:
@@ -238,6 +254,23 @@ namespace imlac
 
                 case Opcode.DAC:
                     DoStoreForCurrentInstruction(_ac);
+                    _pc++;
+                    break;
+
+                case Opcode.DCM:    // PDS-4 only
+                    // Decrement memory by 1
+                    q = DoFetchForCurrentInstruction();
+                    DoStoreForCurrentInstruction((ushort)(q - 1));
+                    _pc++;
+                    break;
+
+                case Opcode.DEA:    // PDS-4 only
+                    // Decrement AC; complement link on underflow.
+                    if (_ac == 0)
+                    {
+                        _link = (ushort)((_link ^ 1) & 0x1);
+                    }
+                    _ac--;
                     _pc++;
                     break;
 
@@ -295,8 +328,19 @@ namespace imlac
                     _pc++;
                     break;
 
+                case Opcode.LAMP:   // PDS-4 only
+                    // Flashes a keyboard indicator lamp for 150ms.
+                    // At this time, thou cannot GET ye LAMP.
+                    _pc++;
+                    break;
+
                 case Opcode.LAW:
                     _ac = _currentInstruction.Data;
+                    _pc++;
+                    break;
+
+                case Opcode.LIAC:
+                    _ac = DoFetchForAddress(_ac);
                     _pc++;
                     break;
 
@@ -353,6 +397,50 @@ namespace imlac
                     _pc++;
                     break;
 
+                case Opcode.POP:    // PDS-4 only
+                    _ac = Pop(_currentInstruction.Data);
+                    _pc++;
+                    break;
+
+
+                case Opcode.POPA:   // PDS-4 only
+                    _pc = Pop(_currentInstruction.Data);
+                    _pc++;  // Yes, we still increment this (net result is PC+2 gets popped from the stack)
+                    break;
+
+                case Opcode.POPD:   // PDS-4 only
+                    // Pops the MDS stack into the DPC.  Only active if
+                    // the display is not running.
+                    // TODO: this also loads the light pen marker into bit 0 of DPC
+                    // and sets the link if CAM is on.
+                    if (_system.DisplayProcessor.State == ProcessorState.Halted)
+                    {
+                        _system.DisplayProcessor.Pop();
+                    }
+                    _pc++;
+                    break;
+
+                case Opcode.PUSH:   // PDS-4 only
+                    Push(_currentInstruction.Data, _ac);
+                    _pc++;
+                    break;
+
+                case Opcode.PUSHA:  // PDS-4 only
+                    _pc++;  // PC after this instruction is pushed to the stack.
+                    Push(_currentInstruction.Data, _pc);
+                    break;
+
+                case Opcode.PUSHD:  // PDS-4 only
+                    // Pushes the DPC onto the DPC stack.  Only active if
+                    // the display is not running.
+                    // TODO: the CAM bit is set according to the link bit status.
+                    if (_system.DisplayProcessor.State == ProcessorState.Halted)
+                    {
+                        _system.DisplayProcessor.Push();
+                    }
+                    _pc++;
+                    break;
+
                 case Opcode.RAL:
                     // TODO: this is pretty inefficient.
                     for (int i = 0; i < _currentInstruction.Data; i++)
@@ -383,6 +471,38 @@ namespace imlac
                         _system.DisplayProcessor.State = ProcessorState.Running;
                     }
 
+                    _pc++;
+                    break;
+
+                case Opcode.RDAX:   // PDS-4 only
+                    // Load the display's XAC into bits 3-15.  Bits
+                    // 3 and 4 are the scissor bits.
+                    _ac = (ushort)_system.DisplayProcessor.X;
+                    _pc++;
+                    break;
+
+                case Opcode.RDAY:   // PDS-4 only
+                    // Load the display's YAC into bits 3-15.  Bits
+                    // 3 and 4 are the scissor bits.
+                    _ac = (ushort)_system.DisplayProcessor.Y;
+                    _pc++;
+                    break;
+
+                case Opcode.RDPC:   // PDS-4 only
+                    // Bits 1-15 of the DPC are loaded into the AC. 
+                    // The Light Pen bit is loaded into AC bit 0.
+                    _ac = (ushort)(_system.DisplayProcessor.PC & 0x7fff);
+
+                    // TODO: Light pen bit, whenever we implement this.
+                    _pc++;
+                    break;
+
+                case Opcode.SAD:    // PDS-4 only
+                    q = DoFetchForCurrentInstruction();
+                    if (_ac != q)
+                    {
+                        _pc++;
+                    }
                     _pc++;
                     break;
 
@@ -515,6 +635,29 @@ namespace imlac
                     _pc++;
                     break;
 
+                case Opcode.SWAP:   // PDS-4 only
+                    _ac = (ushort)((_ac << 8) | (_ac >> 8));
+                    _pc++;
+                    break;
+
+                case Opcode.TAC:    // PDS-4 only
+                    if ((_ac & 0x8000) != 0)
+                    {
+                        // Negative AC: no change to PC
+                    }
+                    else if (_ac != 0)
+                    {
+                        // Positive AC, increment PC once.
+                        _pc++;
+                    }
+                    else
+                    {
+                        // Zero AC, increment PC twice.
+                        _pc += 2;
+                    }
+                    _pc++;
+                    break;
+
                 case Opcode.XAM:
                     q = DoFetchForCurrentInstruction();
                     ushort ac = _ac;
@@ -571,7 +714,11 @@ namespace imlac
         private ushort DoFetchForCurrentInstruction()
         {
             ushort effectiveAddress = _currentInstruction.IsIndirect ? _currentIndirectAddress : GetEffectiveAddress(_currentInstruction.Data);
+            return DoFetchForAddress(effectiveAddress);
+        }
 
+        private ushort DoFetchForAddress(ushort effectiveAddress)
+        {
             // If there's a read breakpoint on this address we will halt here.
             if (BreakpointManager.TestBreakpoint(BreakpointType.Read, effectiveAddress))
             {
@@ -601,6 +748,18 @@ namespace imlac
             _mem.Store(effectiveAddress, word);
         }
 
+        private void Push(ushort pointer, ushort value)
+        {
+            _mem.Store((ushort)(_sp[pointer] & Memory.SizeMask), value);
+            _sp[pointer]--;
+        }
+
+        private ushort Pop(ushort pointer)
+        {
+            _sp[pointer]++;
+            return _mem.Fetch((ushort)(_sp[pointer] & Memory.SizeMask));
+        }
+
         private Instruction _currentInstruction;
         private ushort _currentIndirectAddress;
         private ExecState _instructionState;
@@ -615,6 +774,13 @@ namespace imlac
         private ushort _pc;
         private ushort _link;
         private ushort _ac;
+
+        //
+        // PDS-4 Stack Pointers
+        //
+        private ushort[] _sp = new ushort[2];
+
+         
 
         //
         // Debug information -- the PC at which the last breakpoint occurred.
@@ -634,6 +800,7 @@ namespace imlac
 
         private enum Opcode
         {
+            // PDS-1 Opcodes:
             LAW,        // Load Accumulator With
             LWC,        // Load Accumulator With complement
             JMP,        // Jump
@@ -658,6 +825,29 @@ namespace imlac
             SAR,        // Shift right
 
             SKP,        // generic skip op (encompasses all class 3 instructions which may be combined in a multitude of ways)
+
+            // PDS-4 Opcodes:
+            SAD,        // Skip if memory not equal to AC
+            DCM,        // Decrement memory by 1
+            SWAP,       // Swap AC bytes
+            RDPC,       // Read DPC
+            RDAX,       // Read Display XAC
+            RDAY,       // Read Display YAC
+            SBL,        // Set byte left
+            SBR,        // Set byte right
+            TAC,        // Test AC
+            DEA,        // Decrement AC
+            POPD,       // Pop MDS Stack
+            PUSHD,      // Push MDS Stack
+            LAMP,       // Flash kybd lamp
+            DACS,       // AC into SP
+            LACS,       // SP into AC
+            PUSH,       // AC into stack
+            PUSHA,      // PC into stack
+            POP,        // Stack into AC
+            POPA,       // Stack into PC
+            LIAC,       // Load AC indirect
+            EXACT,      // EXACT instruction
         }
         
         private class Instruction
@@ -720,6 +910,7 @@ namespace imlac
 
                 string effectiveAddress = Helpers.ToOctal(GetEffectiveAddress(address, Data));
 
+                // TODO: might make sense to define this as a big ol' table.
                 switch (Opcode)
                 {
                     case Processor.Opcode.ADD:
@@ -732,7 +923,19 @@ namespace imlac
 
                     case Processor.Opcode.DAC:
                         sb.AppendFormat("DAC {0}", effectiveAddress);
-                        break;                  
+                        break;
+
+                    case Processor.Opcode.DACS:
+                        sb.AppendFormat("DACS {0}", Data);
+                        break;
+
+                    case Processor.Opcode.DCM:
+                        sb.AppendFormat("DCM {0}", effectiveAddress);
+                        break;
+
+                    case Processor.Opcode.EXACT:
+                        sb.AppendFormat("EXACT {0}", Helpers.ToOctal(Data));
+                        break;
 
                     case Processor.Opcode.IOR:
                         sb.AppendFormat("IOR {0}", effectiveAddress);
@@ -758,6 +961,10 @@ namespace imlac
                         sb.AppendFormat("LAC {0}", effectiveAddress);
                         break;
 
+                    case Processor.Opcode.LACS:
+                        sb.AppendFormat("LACS {0}", Data);
+                        break;
+
                     case Processor.Opcode.LAW:
                         sb.AppendFormat("LAW {0}", Helpers.ToOctal(Data));
                         break;
@@ -770,12 +977,40 @@ namespace imlac
                         sb.Append(DisassembleOPR());
                         break;
 
+                    case Processor.Opcode.POP:
+                        sb.AppendFormat("POP {0}", Data);
+                        break;
+
+                    case Processor.Opcode.POPA:
+                        sb.AppendFormat("POPA {0}", Data);
+                        break;
+
+                    case Processor.Opcode.POPD:
+                        sb.AppendFormat("POPA {0}", Data);
+                        break;
+
+                    case Processor.Opcode.PUSH:
+                        sb.AppendFormat("PUSH {0}", Data);
+                        break;
+
+                    case Processor.Opcode.PUSHA:
+                        sb.AppendFormat("PUSHA {0}", Data);
+                        break;
+
+                    case Processor.Opcode.PUSHD:
+                        sb.AppendFormat("PUSHD {0}", Data);
+                        break;
+
                     case Processor.Opcode.RAL:
                         sb.AppendFormat("RAL {0},{1}", Data, DisplayOn ? "DON" : String.Empty);
                         break;
 
                     case Processor.Opcode.RAR:
                         sb.AppendFormat("RAR {0},{1}", Data, DisplayOn ? "DON" : String.Empty);
+                        break;
+
+                    case Processor.Opcode.SAD:
+                        sb.AppendFormat("SAD {0}", effectiveAddress);
                         break;
 
                     case Processor.Opcode.SAL:
@@ -807,8 +1042,16 @@ namespace imlac
                         break;
 
                     default:
-                        throw new InvalidOperationException(String.Format("Unhandled opcode {0}", Opcode));
-
+                        // All other ops take no args, just print as is (including undecoded ops)
+                        if (Enum.IsDefined(typeof(Opcode), Opcode))
+                        {
+                            sb.AppendFormat("{0}", Opcode);
+                        }
+                        else
+                        {
+                            sb.AppendFormat("Illegal instruction {0}", Helpers.ToOctal((ushort)Opcode));
+                        }
+                        break;
                 }
 
                 return sb.ToString();
@@ -820,6 +1063,18 @@ namespace imlac
                 string iot;
                 switch (Data)
                 {
+                    case 0x02:
+                        if (Configuration.CPUType == ImlacCPUType.PDS4)
+                        {
+                            iot = "DON";
+                        }
+                        else
+                        {
+                            // Shouldn't be used on PDS-1 but we'll note it here
+                            iot = "DON (PDS-4)";
+                        }
+                        break;
+
                     case 0x03:
                         iot = "DLA";
                         break;
@@ -953,7 +1208,7 @@ namespace imlac
 
                 if ((Data & 0x8000) == 0)
                 {
-                    opr += ", HLT";
+                    opr += string.IsNullOrEmpty(opr) ? "HLT" : ", HLT";
                 }
 
                 return opr;
@@ -1001,13 +1256,19 @@ namespace imlac
                 {
                     if (!DecodeClass2(word))
                     {
-                        if (!DecodeClass3(word))
+                        if (!DecodeAct2Class(word))
                         {
-                            if (!DecodeIOT(word))
+                            if (!DecodeClass3(word))
                             {
-                                if (!DecodeOrder(word))
+                                if (!DecodeIOT(word))
                                 {
-                                    throw new InvalidOperationException(String.Format("Unhandled instruction {0:x4}", word));
+                                    if (!DecodeExactClass(word))
+                                    {
+                                        if (!DecodeOrder(word))
+                                        {
+                                            throw new InvalidOperationException(String.Format("Unhandled instruction {0}", Helpers.ToOctal(word)));
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -1039,40 +1300,129 @@ namespace imlac
 
             private bool DecodeClass2(ushort word)
             {
+                //
                 // All class 2 instructions contain 0000011 in bits 0-6
+                // and are SHIFT instructions (PDS-1) or
+                // ACT 1 class instructions (PDS-4)
+                //
                 if ((word & 0xfe00) == 0x0600)
                 {
-                    _data = (ushort)(word & 0x0003);
-
-                    // If bit 7 is set, this is a Display On instruction.
-                    if ((word & 0x0040) == 0x0040)
+                    // If bit 7 is set, this is a Display On instruction for the PDS-1
+                    // (which somehow got lumped in with SHIFT instructions on the -1 and was apparently
+                    //  corrected to be more consistent with other display control instructions on the PDS-4).
+                    if (Configuration.CPUType == ImlacCPUType.PDS1 && (word & 0x0040) == 0x0040)
                     {
                         _displayOn = true;
                     }
 
-                    if ((word & 0x0020) == 0x0000)
+                    //
+                    // On the PDS-1, there are only shifts/rotates (and the above DON oddity)
+                    // in this decode branch (instruction prefix octal 003xxx) and it's
+                    // possible to specify a Shift/Rotate of 0 bits (effectively a NOP).
+                    // On the PDS-4, there are extra instructions here, some of which use
+                    // what would be zero shift values on the PDS-1.
+                    bool decoded = true;
+                    if (Configuration.CPUType == ImlacCPUType.PDS4)
                     {
-                        // Rotate
-                        if ((word & 0x0010) == 0x0000)
+                        switch (word & 0x1f)
                         {
-                            _opcode = Opcode.RAL;
-                        }
-                        else
-                        {
-                            _opcode = Opcode.RAR;
+                            case 0x00:
+                                _opcode = Opcode.SWAP;
+                                break;
+
+                            case 0x04:
+                                _opcode = Opcode.RDPC;
+                                break;
+
+                            case 0x05:
+                                _opcode = Opcode.RDAX;
+                                break;
+
+                            case 0x06:
+                                _opcode = Opcode.RDAY;
+                                break;
+
+                            case 0x08:
+                                _opcode = Opcode.SBL;
+                                break;
+
+                            case 0x09:
+                                _opcode = Opcode.SBR;
+                                break;
+
+                            case 0x14:
+                                _opcode = Opcode.TAC;
+                                break;
+
+                            case 0x15:
+                                _opcode = Opcode.DEA;
+                                break;
+
+                            case 0x28:
+                                _opcode = Opcode.POPD;
+                                break;
+
+                            case 0x29:
+                                _opcode = Opcode.PUSHD;
+                                break;
+
+                            case 0x2a:
+                                _opcode = Opcode.LAMP;
+                                break;
+
+                            case 0x18:
+                            case 0x19:
+                                _opcode = Opcode.DACS;
+                                _data = (ushort)(word & 0x1);
+                                break;
+
+                            case 0x1a:
+                            case 0x1b:
+                                _opcode = Opcode.LACS;
+                                _data = (ushort)(word & 0x1);
+                                break;
+
+                            default:
+                                decoded = false;
+                                break;
                         }
                     }
                     else
                     {
-                        // Shift
-                        if ((word & 0x0010) == 0x0000)
+                        decoded = false;
+                    }
+                    
+                    if (!decoded)
+                    {
+                        // Must be a shift or rotate operation.
+
+                        _data = (ushort)(word & 0x0003);
+
+                        if ((word & 0x0020) == 0x0000)
                         {
-                            _opcode = Opcode.SAL;
+                            // Rotate
+                            if ((word & 0x0010) == 0x0000)
+                            {
+                                _opcode = Opcode.RAL;
+                            }
+                            else
+                            {
+                                _opcode = Opcode.RAR;
+                            }
                         }
                         else
                         {
-                            _opcode = Opcode.SAR;
+                            // Shift
+                            if ((word & 0x0010) == 0x0000)
+                            {
+                                _opcode = Opcode.SAL;
+                            }
+                            else
+                            {
+                                _opcode = Opcode.SAR;
+                            }
                         }
+                        
                     }
 
                     _operateOrIOT = true;
@@ -1105,6 +1455,55 @@ namespace imlac
                 }
             }
 
+            private bool DecodeAct2Class(ushort word)
+            {
+                // Act 2 Class instructions have 0 001 000 011 in bits 0-9
+                // and are only valid on PDS-4 processors.
+                if (Configuration.CPUType == ImlacCPUType.PDS4 && 
+                    (word & 0xffc0) == 0x10c0)
+                {
+                    _operateOrIOT = false;  // All require two cycles
+
+                    _data = (ushort)(word & 0x1);
+                    switch (word & 0xf)
+                    {
+                        case 0x0:
+                        case 0x1:
+                            _opcode = Opcode.PUSH;
+                            break;
+
+                        case 0x2:
+                        case 0x3:
+                            _opcode = Opcode.PUSHA;
+                            break;
+
+                        case 0x4:
+                        case 0x5:
+                            _opcode = Opcode.POP;
+                            break;
+
+                        case 0x6:
+                        case 0x7:
+                            _opcode = Opcode.POPA;
+                            break;
+
+                        case 0x8:
+                            _opcode = Opcode.LIAC;
+                            break;
+
+                        default:
+                            // Nope.
+                            return false;
+                    }
+
+                    return true;
+                }
+                else
+                {
+                    return false;
+                }
+            }
+
             private bool DecodeIOT(ushort word)
             {
                 // All IOT instructions contain 0000001 in bits 0-6
@@ -1115,6 +1514,22 @@ namespace imlac
                     _iotDevice = (word & 0x1f8) >> 3;
                     _iop = (ushort)(word & 0x0007);
                     _data = (ushort)(word & 0x1ff);
+                    _operateOrIOT = true;
+                    return true;
+                }
+                else
+                {
+                    return false;
+                }
+            }
+
+            private bool DecodeExactClass(ushort word)
+            {
+                // All Exact Class instructions contain 1 000 001 in bits 0-6
+                if ((word & 0xfe00) == 0x8200)
+                {
+                    _data = (ushort)(word & 0x1ff);
+                    _opcode = Opcode.EXACT;
                     _operateOrIOT = true;
                     return true;
                 }
@@ -1141,6 +1556,10 @@ namespace imlac
                         _opcode = Opcode.JMP;
                         break;
 
+                    case 0x0c:
+                        _opcode = Opcode.SAD;
+                        break;
+
                     case 0x10:
                         _opcode = Opcode.DAC;
                         break;
@@ -1155,6 +1574,10 @@ namespace imlac
 
                     case 0x1c:
                         _opcode = Opcode.JMS;
+                        break;
+
+                    case 0x20:
+                        _opcode = Opcode.DCM;
                         break;
 
                     case 0x24:
