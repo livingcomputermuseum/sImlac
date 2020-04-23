@@ -45,12 +45,13 @@ namespace imlac
             _tty = new TTY(this);
             _keyboard = new Keyboard(this);
             _clock = new AddressableClock(this);
-            _interruptFacility = new InterruptFacility(this);
-            _displayProcessor = new DisplayProcessor(this);
+            _interruptFacility = new InterruptFacility(this);            
+
             _processor = new Processor(this);
 
-            // Register IOT devices
-            _processor.RegisterDeviceIOTs(_displayProcessor);
+            AttachDisplayProcessor();
+
+            // Register IOT devices            
             _processor.RegisterDeviceIOTs(_paperTapeReader);
             _processor.RegisterDeviceIOTs(_tty);
             _processor.RegisterDeviceIOTs(_keyboard);
@@ -89,7 +90,7 @@ namespace imlac
             get { return _processor; }
         }
 
-        public DisplayProcessor DisplayProcessor
+        public DisplayProcessorBase DisplayProcessor
         {
             get { return _displayProcessor; }
         }
@@ -508,10 +509,36 @@ namespace imlac
         }
 
         [DebuggerFunction("set cpu type", "Selects CPU type: PDS1 or PDS4", "<cpu>")]
-        private SystemExecutionState SetMITMode(ImlacCPUType type)
+        private SystemExecutionState SetCPUType(ImlacCPUType type)
         {
-            Configuration.CPUType = type;
+            if (Configuration.CPUType != type)
+            {
+                Configuration.CPUType = type;
+                AttachDisplayProcessor();
+                _displayProcessor.Reset();
+            }
             return SystemExecutionState.Debugging;
+        }
+
+        private void AttachDisplayProcessor()
+        {
+            // Unregister current display processor
+
+            if (_displayProcessor != null)
+            {
+                _processor.UnregisterDeviceIOTs(_displayProcessor);
+            }
+
+            if (Configuration.CPUType == ImlacCPUType.PDS1)
+            {
+                _displayProcessor = new PDS1DisplayProcessor(this);
+            }
+            else
+            {
+                _displayProcessor = new PDS4DisplayProcessor(this);
+            }
+
+            _processor.RegisterDeviceIOTs(_displayProcessor);            
         }
 
         public enum DisassemblyMode
@@ -693,7 +720,7 @@ namespace imlac
         }
 
         private Processor _processor;
-        private DisplayProcessor _displayProcessor;
+        private DisplayProcessorBase _displayProcessor;
         private IImlacConsole _display;
         private Memory _memory;
         private PaperTapeReader _paperTapeReader;

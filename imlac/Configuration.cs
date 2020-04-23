@@ -14,6 +14,11 @@ namespace imlac
 
     public static class Configuration
     {
+        static Configuration()
+        {
+            MITMode = false;
+            CPUType = ImlacCPUType.PDS1;
+        }
         //
         // Static System configuration parameters
         //

@@ -80,6 +80,16 @@ namespace imlac
             }
         }
 
+        public void UnregisterDeviceIOTs(IIOTDevice device)
+        {
+            int[] handledIOTs = device.GetHandledIOTs();
+
+            foreach (int i in handledIOTs)
+            {
+                _iotDispatch[i] = null;
+            }
+        }
+
         public ProcessorState State
         {
             get { return _state; }
@@ -1526,7 +1536,9 @@ namespace imlac
             private bool DecodeExactClass(ushort word)
             {
                 // All Exact Class instructions contain 1 000 001 in bits 0-6
-                if ((word & 0xfe00) == 0x8200)
+                // and exist only on PDS-4 systems
+                if (Configuration.CPUType == ImlacCPUType.PDS4 &&
+                    (word & 0xfe00) == 0x8200)
                 {
                     _data = (ushort)(word & 0x1ff);
                     _opcode = Opcode.EXACT;

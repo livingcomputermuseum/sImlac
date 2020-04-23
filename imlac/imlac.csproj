@@ -51,6 +51,8 @@
     <Compile Include="Debugger\Console.cs" />
     <Compile Include="Debugger\DebuggerAttributes.cs" />
     <Compile Include="Debugger\DebuggerPrompt.cs" />
+    <Compile Include="PDS4DisplayProcessor.cs" />
+    <Compile Include="PDS1DisplayProcessor.cs" />
     <Compile Include="HighResTimer.cs" />
     <Compile Include="IO\TTYChannels\NullDataChannel.cs" />
     <Compile Include="IO\TTYChannels\SerialDataChannel.cs" />
