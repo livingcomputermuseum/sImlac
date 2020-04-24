@@ -257,6 +257,16 @@ namespace imlac
             STI1,
             LPA1,
 
+            // PDS-4 only instructions
+            DMVM,       // Medium Vector Mode
+            DCAM,       // Compact Addressing Mode
+            DBLI,       // Blinking
+            DFXY,       // Fast X/Y Mode
+            DVIC,       // Variable Intensity
+            DASG,       // Automatic Increment and Intensify
+            DROR,       // Character Rotation/Reflection
+            DARX,       // Add Relative X
+            DARY,       // Add Relative Y
         }
 
         protected abstract class DisplayInstructionBase

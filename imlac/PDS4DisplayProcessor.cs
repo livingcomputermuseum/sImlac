@@ -38,9 +38,9 @@ namespace imlac
         {
             base.Reset();
 
-            _sgrModeOn = false;
-            _sgrBeamOn = false;
-            _sgrDJRMOn = false;
+            _fxyOn = false;
+            _fxyBeamOn = false;
+            _fxyDRJMOn = false;
         }
 
         public override void InitializeCache()
@@ -210,7 +210,7 @@ namespace imlac
                     if ((instruction.Data & 0x200) != 0)
                     {
                         // DIXM -- increment X DAC MSB
-                        X += 0x10;
+                        X += MSBIncrement;
                         _system.Display.MoveAbsolute(X, Y, DrawingMode.Off);
                         if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "DIXM, X is now {0}", X);
                     }
@@ -218,7 +218,7 @@ namespace imlac
                     if ((instruction.Data & 0x100) != 0)
                     {
                         // DIYM -- increment Y DAC MSB
-                        Y += 0x10;
+                        Y += MSBIncrement;
                         _system.Display.MoveAbsolute(X, Y, DrawingMode.Off);
                         if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "DIYM, Y is now {0}", Y);
                     }
@@ -226,7 +226,7 @@ namespace imlac
                     if ((instruction.Data & 0x80) != 0)
                     {
                         // DDXM - decrement X DAC MSB
-                        X -= 0x10;
+                        X -= MSBIncrement;
                         _system.Display.MoveAbsolute(X, Y, DrawingMode.Off);
                         if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "DDXM, X is now {0}", X);
                     }
@@ -234,7 +234,7 @@ namespace imlac
                     if ((instruction.Data & 0x40) != 0)
                     {
                         // DDYM - decrement y DAC MSB
-                        Y -= 0x10;
+                        Y -= MSBIncrement;
                         _system.Display.MoveAbsolute(X, Y, DrawingMode.Off);
                         if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "DDYM, Y is now {0}", Y);
                     }
@@ -295,7 +295,7 @@ namespace imlac
                     X = instruction.Data;
                     
                     DrawingMode mode;
-                    if (_sgrModeOn && _sgrBeamOn)
+                    if (_fxyOn && _fxyBeamOn)
                     {
                         if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "SGR-1 X set to {0}", X);
                         mode = DrawingMode.SGR1;
@@ -308,7 +308,7 @@ namespace imlac
 
                     _system.Display.MoveAbsolute(X, Y, mode);
                     
-                    if (_sgrDJRMOn)
+                    if (_fxyDRJMOn)
                     {
                         ReturnFromDisplaySubroutine();
                     }
@@ -321,7 +321,7 @@ namespace imlac
                 case DisplayOpcode.DLYA:
                     Y = instruction.Data;
                     
-                    if (_sgrModeOn && _sgrBeamOn)
+                    if (_fxyOn && _fxyBeamOn)
                     {
                         if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "SGR-1 Y set to {0}", Y);
                         mode = DrawingMode.SGR1;
@@ -334,7 +334,7 @@ namespace imlac
 
                     _system.Display.MoveAbsolute(X, Y, mode);
 
-                    if (_sgrDJRMOn)
+                    if (_fxyDRJMOn)
                     {
                         ReturnFromDisplaySubroutine();
                     }
@@ -348,17 +348,24 @@ namespace imlac
                     DrawLongVector(instruction.Data);
                     break;
 
-                case DisplayOpcode.SGR1:
-                    _sgrModeOn = (instruction.Data & 0x1) != 0;
-                    _sgrDJRMOn = (instruction.Data & 0x2) != 0;
-                    _sgrBeamOn = (instruction.Data & 0x4) != 0;
+                case DisplayOpcode.DFXY:
+                    _fxyOn = (instruction.Data & 0x1) != 0;
+                    _fxyDRJMOn = (instruction.Data & 0x2) != 0;
+                    _fxyBeamOn = (instruction.Data & 0x4) != 0;
 
-                    if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "SGR-1 instruction: Enter {0} BeamOn {1} DRJM {2}", _sgrModeOn, _sgrBeamOn, _sgrDJRMOn);
+                    if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "SGR-1 instruction: Enter {0} BeamOn {1} DRJM {2}", 
+                        _fxyOn, 
+                        _fxyBeamOn, 
+                        _fxyDRJMOn);
+
                     _pc++;
                     break;
 
                 default:
-                    throw new NotImplementedException(String.Format("Unimplemented Display Processor Opcode {0}, operands {1}", Helpers.ToOctal((ushort)instruction.Opcode), Helpers.ToOctal(instruction.Data)));
+                    throw new NotImplementedException(String.Format("Unimplemented Display Processor Opcode {0}, ({1}), operands {1}", 
+                        instruction.Opcode, 
+                        Helpers.ToOctal((ushort)instruction.Opcode), 
+                        Helpers.ToOctal(instruction.Data)));
             }
 
             // If the next instruction has a breakpoint set we'll halt at this point, before executing it.
@@ -399,25 +406,25 @@ namespace imlac
                 
                 if ((halfWord & 0x10) != 0)
                 {
-                    X += 0x10;
+                    X += MSBIncrement;
                     if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "Increment X MSB, X is now {0}", X);
                 }
 
                 if ((halfWord & 0x08) != 0)
                 {
-                    X = X & (0xfff0);
+                    X = X & (MSBMask);
                     if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "Reset X LSB, X is now {0}", X);
                 }
 
                 if ((halfWord & 0x02) != 0)
                 {
-                    Y += 0x10;
+                    Y += MSBIncrement;
                     if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "Increment Y MSB, Y is now {0}", Y);
                 }
 
                 if ((halfWord & 0x01) != 0)
                 {
-                    Y = Y & (0xfff0);
+                    Y = Y & (MSBMask);
                     if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "Reset Y LSB, Y is now {0}", Y);
                 }
                 
@@ -469,42 +476,53 @@ namespace imlac
         private void DrawLongVector(ushort word0)
         {
             //
-            // A Long Vector instruction is 3 words long:
-            // Word 0: upper 4 bits indicate the opcode (4), lower 12 specify N-M
-            // Word 1: upper 3 bits specify beam options (dotted, solid, etc) and the lower 12 specify the larger increment "M"
-            // Word 2: upper 3 bits specify signs, lower 12 specify the smaller increment "N"
-            // M is the larger absolute value between dX and dY
-            // N is the smaller.
-
-            //
-            // Unsure at the moment what the N-M bits are for (I'm guessing they're there to help the processor figure things out).
-            // Also unsure what bits are used in the 12 bits for N and M (the DACs are only 11-bits, but normally only 10 can be specified)...
-            //
+            // A Long Vector instruction is 2 words long on the PDS-4:
+            // Word 0: upper 5 bits indicate the opcode, lower 11 specify sign and magnitude M of larger of X and Y
+            // Word 1: 
+            // - lower 10 bits indicate magnitude of shorter deflection (N)
+            // - bit 0 : return jump after vector drawn
+            // - bit 1 : draw dashed line
+            // - bit 2 : draw dotted line
+            // - bit 3 : beam on
+            // - bit 4 : 1 = M is Y, 0 = M is X
+            // - bit 5 : sign of N
+            
             ushort word1 = _mem.Fetch(++_pc);
-            ushort word2 = _mem.Fetch(++_pc);
 
-            uint M = (uint)(word1 & 0x3ff);
-            uint N = (uint)(word2 & 0x3ff);
+            // Not documented, but from empirical evidence from PDS-4 games
+            // (pong, crash) the magnitude is scaled by 2 (i.e. specified LSBN is bit 1 of X and Y AC's)
+            uint M = (uint)(word0 & 0x3ff) << 1;
+            uint N = (uint)(word1 & 0x3ff) << 1;
 
-            bool beamOn = (word1 & 0x2000) != 0;
+            bool ret = (word1 & 0x8000) != 0;
             bool dotted = (word1 & 0x4000) != 0;
+            bool dashed = (word1 & 0x2000) != 0;
+            bool beamOn = (word1 & 0x1000) != 0;
+            bool dyGreater = (word1 & 0x0800) != 0;
 
-            int dySign = (word2 & 0x2000) != 0 ? -1 : 1;
-            int dxSign = (word2 & 0x4000) != 0 ? -1 : 1;
-            bool dyGreater = (word2 & 0x1000) != 0;
- 
+            int mSign = (word0 & 0x0400) != 0 ? -1 : 1;
+            int nSign = (word1 & 0x0400) != 0 ? -1 : 1;
+             
             uint dx = 0;
             uint dy = 0;
+
+            int dxSign = 0;
+            int dySign = 0;
 
             if (dyGreater)
             {
                 dy = M;
                 dx = N;
+
+                dySign = mSign;
+                dxSign = nSign;
             }
             else
             {
                 dx = M;
                 dy = N;
+                dxSign = mSign;
+                dySign = nSign;
             }
 
             if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "LongVector x={0} y={1} dx={2} dy={3} beamOn {4} dotted {5}", X, Y, dx * dxSign, dy * dySign, beamOn, dotted);
@@ -519,6 +537,12 @@ namespace imlac
             _system.Display.MoveAbsolute(X, Y, beamOn ? (dotted ? DrawingMode.Dotted : DrawingMode.Normal) : DrawingMode.Off);
 
             _pc++;
+
+            if (ret)
+            {
+                if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "LongVector, return from subroutine.");
+                ReturnFromDisplaySubroutine();
+            }
         }
 
         private PDS4DisplayInstruction GetCachedInstruction(ushort address, DisplayProcessorMode mode)
@@ -532,9 +556,16 @@ namespace imlac
         }
 
         // SGR-1 mode switches
-        private bool _sgrModeOn; 
-        private bool _sgrDJRMOn; 
-        private bool _sgrBeamOn;
+        private bool _fxyOn; 
+        private bool _fxyDRJMOn; 
+        private bool _fxyBeamOn;
+
+        /// <summary>
+        /// TODO: All available PDS-4 docs insist that the X/Y AC LSB is four bits wide.
+        /// This was 5 bits on the PDS-1...
+        /// </summary>
+        private const int MSBIncrement = 0x10;
+        private const int MSBMask = 0xfff0;
 
         private PDS4DisplayInstruction[] _instructionCache;
 
@@ -591,23 +622,41 @@ namespace imlac
 
                 switch (op)
                 {
-                    case 0x00:
+                    case 0x0:
                         // opr code
                         _opcode = DisplayOpcode.DOPR;
                         _data = (ushort)(_word & 0xfff);
                         break;
 
-                    case 0x01:
+                    case 0x1:
                         _opcode = DisplayOpcode.DLXA;
-                        _data = (ushort)(_word & 0x7ff);
+                        if (!Configuration.MITMode)
+                        {
+                            // Just 11 bits
+                            _data = (ushort)(_word & 0x7ff);
+                        }
+                        else
+                        {
+                            // All 13 bits (11 bits + 2 bits of scissor)
+                            _data = (ushort)(_word & 0x1fff);
+                        }
                         break;
 
-                    case 0x02:
+                    case 0x2:
                         _opcode = DisplayOpcode.DLYA;
-                        _data = (ushort)(_word & 0x7ff);
+                        if (!Configuration.MITMode)
+                        {
+                            // Just 11 bits
+                            _data = (ushort)(_word & 0x7ff);
+                        }
+                        else
+                        {
+                            // All 13 bits (11 bits + 2 bits of scissor)
+                            _data = (ushort)(_word & 0x1fff);
+                        }
                         break;
 
-                    case 0x03:
+                    case 0x3:
                         _opcode = DisplayOpcode.DEIM;
                         _data = (ushort)(_word & 0xff);
 
@@ -617,12 +666,25 @@ namespace imlac
                         }
                         break;
 
-                    case 0x04:
-                        _opcode = DisplayOpcode.DLVH;
-                        _data = (ushort)(_word & 0xfff);
+                    case 0x4:
+                        // This is either LVM (0 100 0xx ...) [040...] or MVM (0 100 1xx ...) [044...]
+                        if ((_word & 0x0800) == 0)
+                        {
+                            // Long vector
+                            _opcode = DisplayOpcode.DLVH;
+
+                            // low 11 bits specify the sign (bit 5)
+                            // and M (10-bits) - greater deflection of X and Y.
+                            _data = (ushort)(_word & 0x07ff);
+                        }
+                        else
+                        {
+                            _opcode = DisplayOpcode.DMVM;
+                            _data = (ushort)(_word & 0xff);
+                        }
                         break;
 
-                    case 0x05:
+                    case 0x5:
                         _opcode = DisplayOpcode.DJMS;
                         _data = (ushort)(_word & 0xfff);
 
@@ -633,7 +695,7 @@ namespace imlac
                         }
                         break;
 
-                    case 0x06:
+                    case 0x6:
                         _opcode = DisplayOpcode.DJMP;
                         _data = (ushort)(_word & 0xfff);
 
@@ -644,7 +706,7 @@ namespace imlac
                         }
                         break;
 
-                    case 0x07:
+                    case 0x7:
                         DecodeExtendedInstruction(_word);
                         break;
 
@@ -655,39 +717,57 @@ namespace imlac
 
             void DecodeExtendedInstruction(ushort word)
             {
-                int op = (word & 0x1f8) >> 3;
+                //
+                // Decode "extended" operations which are all prefixed with "07" (octal).
+                // There is no real method to the encoding madness here so we start with 
+                // more specific encodings and work down.
+                // Ugh.
 
-                switch (op)
+                //
+                // below, "x" means "octal digit, don't care"
+                //        in braces, "b" means "binary digit, don't care"
+                //
+
+                // TODO: here and in general: move magic numbers to constants
+                if (word == 0x7f91) // DCAM (Compact Addressing Mode) - 077621
                 {
-                    case 0x36:
-                    case 0x37:
-                        _opcode = DisplayOpcode.ASG1;
-                        break;
-
-                    case 0x3a:
-                    case 0x3b:
-                        _opcode = DisplayOpcode.VIC1;
-                        break;
-
-                    case 0x3c:
-                    case 0x3d:
-                        _opcode = DisplayOpcode.MCI1;
-                        break;
-
-                    case 0x3e:
-                        _opcode = DisplayOpcode.STI1;
-                        break;
-
-                    case 0x3f:
-                        _opcode = DisplayOpcode.SGR1;
-                        break;
-
-                    default:
-                        throw new NotImplementedException(String.Format("Unhandled extended Display Processor Mode instruction {0}", Helpers.ToOctal(word)));
+                    _opcode = DisplayOpcode.DCAM;
+                    _data = 0;
                 }
-
-                _data = (ushort)(word & 0x7);
-                
+                else if ((word & 0x7ffe) == 0x7f92) // DBLI (Blinking) 07762 [01b]
+                {
+                    _opcode = DisplayOpcode.DBLI;
+                    _data = (ushort)(word & 0x1);
+                }
+                else if ((word & 0x7ff8) == 0x7ff8) // FXY (Suppressed Grid) - 07777x
+                {
+                    _opcode = DisplayOpcode.DFXY;
+                    _data = (ushort)(word & 0x7);
+                }
+                else if ((word & 0x7ff0) == 0x7fd0) // DVIC (Variable Intensity Control) 0777 [01b bbbb]
+                {
+                    _opcode = DisplayOpcode.DVIC;
+                    _data = (ushort)(word & 0xf);
+                }                        
+                else if ((word & 0x7ff0) == 0x7ff0) // DASG (Auto increment & intensify) - 0776 [11b bbb]
+                {
+                    _opcode = DisplayOpcode.DASG;
+                    _data = (ushort)(word & 0xf);
+                }
+                else if ((word & 0x7ff0) == 0x7fa0) // DROR (Character rotation/reflection) - 0776 [10b bbb]
+                {
+                    _opcode = DisplayOpcode.DROR;
+                    _data = (ushort)(word & 0xf);
+                }                
+                else if ((word & 0x7e00) == 0x7c00) // DARX, DARY (Add Relative) - 076xxx
+                {
+                    _opcode = (word & 0x0100) == 0 ? DisplayOpcode.DARX : DisplayOpcode.DARY;
+                    _data = (ushort)(word & 0xff);
+                }
+                else
+                { 
+                    throw new NotImplementedException(String.Format("Unhandled extended Display Processor Mode instruction {0}", Helpers.ToOctal(word)));
+                }
             }
 
             private string DisassembleIncrement()

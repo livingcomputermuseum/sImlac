@@ -575,8 +575,9 @@ namespace imlac
                 if (_mode != mode)
                 {
                     _mode = mode;
-                    UpdateColor();
                 }
+
+                UpdateColor();
 
                 _x1 = (int)startX;
                 _y1 = (int)startY;
@@ -586,13 +587,21 @@ namespace imlac
 
             public void Draw(IntPtr sdlRenderer)
             {
-                // TODO: handle dotted lines, line thickness options    
+                // TODO: handle dotted lines, line thickness options
                 SDL.SDL_SetRenderDrawColor(sdlRenderer, _color.R, _color.G, _color.B, _color.A);
                 SDL.SDL_RenderDrawLine(sdlRenderer, _x1, _y1, _x2, _y2);
             }
 
             private void UpdateColor()
             {
+                // Special case for single point vectors.
+                if (_mode != DrawingMode.Off &&
+                    _x1 == _x2 && 
+                    _y1 == _y2)
+                {
+                    _mode = DrawingMode.Point;
+                }
+
                 switch (_mode)
                 {
                     case DrawingMode.Normal:
@@ -621,9 +630,9 @@ namespace imlac
             private int _x2;
             private int _y2;
 
-            private static Color NormalColor = Color.FromArgb(48, Color.ForestGreen);
+            private static Color NormalColor = Color.FromArgb(200, Color.ForestGreen);
             private static Color PointColor = Color.FromArgb(255, Color.GreenYellow);
-            private static Color SGRColor = Color.FromArgb(128, Color.ForestGreen);
+            private static Color SGRColor = Color.FromArgb(127, Color.DarkGreen);
             private static Color DebugColor = Color.FromArgb(255, Color.OrangeRed);
         }
         
