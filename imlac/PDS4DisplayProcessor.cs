@@ -41,6 +41,12 @@ namespace imlac
             _fxyOn = false;
             _fxyBeamOn = false;
             _fxyDRJMOn = false;
+
+            _camEnabled = false;
+            _caBase = 0;
+            _camHalf = ImmediateHalf.First;
+            _camWord = 0;
+            _camStackDepth = 0;
         }
 
         public override void InitializeCache()
@@ -95,12 +101,31 @@ namespace imlac
                 case DisplayProcessorMode.Increment:
                     ExecuteIncrement();
                     break;
+
+                case DisplayProcessorMode.CompactAddressing:
+                    ExecuteCompactAddressing();
+                    break;
             }
         }
 
         public override int[] GetHandledIOTs()
         {
             return _handledIOTs;
+        }
+
+        public override void StartProcessor()
+        {
+            base.StartProcessor();
+
+            // Beam intensity is set to maximum after display is enabled.
+            _system.Display.SetIntensity(16);
+            _system.Display.SetBlink(false);
+        }
+
+        public override void HaltProcessor()
+        {
+            base.HaltProcessor();            
+            _camEnabled = false;
         }
 
         public override void ExecuteIOT(int iotCode)
@@ -120,20 +145,16 @@ namespace imlac
 
                     if (iotCode == 0x03)
                     {
-                        State = ProcessorState.Running;
-                        // MIT DADR bit gets reset when display is started.
-                        _dadr = false;
+                        StartProcessor();                        
                     }
                     break;
 
                 case 0x02:      // Turn DP On.
-                    State = ProcessorState.Running;
-                    // MIT DADR bit gets reset when display is started.
-                    _dadr = false;
+                    StartProcessor();                    
                     break;
 
                 case 0x0a:      // Halt display processor
-                    State = ProcessorState.Halted;
+                    HaltProcessor();
                     break;
 
                 case 0x39:      // Clear display 40Hz sync latch
@@ -141,11 +162,7 @@ namespace imlac
                     break;
 
                 case 0xc4:      // clear halt state
-                    // TODO: what does this actually do?
-                    //State = ProcessorState.Running;
-
-                    // MIT DADR bit gets reset when display is started.
-                    _dadr = false;
+                    _halted = false;
                     break;
 
                 default:
@@ -201,7 +218,7 @@ namespace imlac
                     {
                         // DHLT -- halt the display processor.  other micro-ops in this
                         // instruction are still run.
-                        State = ProcessorState.Halted;
+                        HaltProcessor();
                     }
 
                     // Used to modify DSTS or DSTB operation
@@ -272,8 +289,6 @@ namespace imlac
                         case 0x1:
                             // Set scale based on C and Bit 5.
                             _scale = c + (bit5 ? 4 : 0);
-
-                            Console.WriteLine("scale {0}", _scale);
                             
                             if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "Scale set to {0}", _scale);
                             break;
@@ -361,6 +376,48 @@ namespace imlac
                     _pc++;
                     break;
 
+                case DisplayOpcode.DVIC:
+                    _system.Display.SetIntensity(instruction.Data);
+                    _pc++;
+                    break;
+
+                case DisplayOpcode.DCAM:                    
+                    // Enter Compact Addressing Mode, this is supposedly illegal if
+                    // we're already in that mode, so we'll throw here to help with debugging
+                    if (_camEnabled)
+                    {
+                        throw new InvalidOperationException("DCAM while in Compact Addressing Mode.");
+                    }
+
+                    _camEnabled = true;
+
+                    // subroutine table address is the next word.  Low 8-bits should be zero, we'll
+                    // sanity check it.
+                    _caBase = _mem.Fetch(++_pc);
+
+                    if ((_caBase & 0xff) != 0)
+                    {
+                        throw new InvalidOperationException(
+                            String.Format("CAM subroutine base address {0} not on a 256-word boundary!",
+                            Helpers.ToOctal(_caBase)));
+                    }
+
+                    // start things off by fetching the first subroutine word.  This is not strictly
+                    // accurate with respect to timing.  (Ok, it's not accurate at all.)
+                    // TODO: refactor Immediate halfword routines here (share w/short vectors?)
+                    _camWord = _mem.Fetch(++_pc);
+                    _camHalf = ImmediateHalf.First;                    
+                    if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "Enter Compact Addressing mode, base address {0}",
+                        Helpers.ToOctal(_caBase));
+
+                    _mode = DisplayProcessorMode.CompactAddressing;
+                    break;
+
+                case DisplayOpcode.DBLI:
+                    _system.Display.SetBlink((instruction.Data) != 0);
+                    _pc++;
+                    break;
+
                 default:
                     throw new NotImplementedException(String.Format("Unimplemented Display Processor Opcode {0}, ({1}), operands {1}", 
                         instruction.Opcode, 
@@ -442,8 +499,8 @@ namespace imlac
 
                 if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "Inc mode ({0}:{1}), x={2} y={3} dx={4} dy={5} beamon {6}", Helpers.ToOctal((ushort)_pc), Helpers.ToOctal((ushort)halfWord), X, Y, xSign * xMag, ySign * yMag, (halfWord & 0x40) != 0);
 
-                X = (uint)(X + xSign * xMag);
-                Y = (uint)(Y + ySign * yMag);
+                X = X + xSign * xMag;
+                Y = Y + ySign * yMag;
                 _system.Display.MoveAbsolute(X, Y, (halfWord & 0x40) == 0 ? DrawingMode.Off : DrawingMode.Normal);
 
                 MoveToNextHalfWord();
@@ -465,11 +522,68 @@ namespace imlac
                 _immediateHalf = ImmediateHalf.First;
 
                 // Update the instruction cache with the type of instruction (to aid in debugging).
-                PDS4DisplayInstruction instruction = GetCachedInstruction(_pc, DisplayProcessorMode.Increment);                
+                PDS4DisplayInstruction instruction = GetCachedInstruction(_pc, DisplayProcessorMode.Increment);
             }
             else
             {
                 _immediateHalf = ImmediateHalf.Second;
+            }
+        }
+
+        private void ExecuteCompactAddressing()
+        {
+            int halfWord = _camHalf == ImmediateHalf.First ? (_camWord & 0xff00) >> 8 : (_camWord & 0xff);
+
+            if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, 
+                "CAM Halfword {2} is {0} (fullword {1})", Helpers.ToOctal((ushort)halfWord), Helpers.ToOctal(_camWord), _camHalf);
+
+            // Is this an exit?
+            if (halfWord == 0xff)
+            {
+                if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "CAM: Exit from CAM.");
+                _camEnabled = false;
+                _pc++;
+            }
+            else
+            {
+                // Do a subroutine jump to the routine at base address + routine halfword
+                ushort subroutineAddress = (ushort)(_caBase | halfWord);
+
+                _camStackDepth = _dtStack.Count;
+
+                // Store the current PC on the MDS stack
+                _pc--;
+                Push();
+
+                // TODO: does the MIT DADR mod factor in here?  I assume not because
+                // the standard DSTB mechanism doesn't apply either
+
+                // Jump to the subroutine at table address.  On return to this stack depth
+                // we will return to CAM to pick up the next halfword.
+                _pc = _mem.Fetch(subroutineAddress);
+
+                if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "CAM: Jump to subroutine at {0}", 
+                    Helpers.ToOctal(_pc));
+            }
+
+            // Return to Processor mode for the duration of the subroutine.
+            _mode = DisplayProcessorMode.Processor;
+        }
+
+        private void MoveToNextCAMHalfWord()
+        {
+            if (_camHalf == ImmediateHalf.Second)
+            {
+                _pc++;
+                _camWord = _mem.Fetch(_pc);
+                _camHalf = ImmediateHalf.First;
+
+                // Update the instruction cache with the type of instruction (to aid in debugging).
+                PDS4DisplayInstruction instruction = GetCachedInstruction(_pc, DisplayProcessorMode.CompactAddressing);
+            }
+            else
+            {
+                _camHalf = ImmediateHalf.Second;
             }
         }
 
@@ -529,8 +643,8 @@ namespace imlac
             
             // The docs don't call this out, but the scale setting used in increment mode appears to apply
             // to the LVH vectors as well.  (Maze appears to rely on this.)
-            X = (uint)(X + (dx * dxSign) * _scale);
-            Y = (uint)(Y + (dy * dySign) * _scale);
+            X = (int)(X + (dx * dxSign) * _scale);
+            Y = (int)(Y + (dy * dySign) * _scale);
 
             if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "LongVector, move complete - x={0} y={1}", X, Y, dx * dxSign, dy * dySign, beamOn, dotted);
 
@@ -545,6 +659,21 @@ namespace imlac
             }
         }
 
+        private void ReturnFromDisplaySubroutine()
+        {
+            Pop();
+
+            // If CAM is enabled, we return to CAM mode to pick up the next word.
+            if (_camEnabled && _camStackDepth == _dtStack.Count)
+            {                
+                MoveToNextCAMHalfWord();
+                _mode = DisplayProcessorMode.CompactAddressing;
+
+                if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "CAM: Return from subroutine.  PC {0} halfword {1}", 
+                    Helpers.ToOctal(_pc), _camHalf);
+            }
+        }
+
         private PDS4DisplayInstruction GetCachedInstruction(ushort address, DisplayProcessorMode mode)
         {
             if (_instructionCache[address & Memory.SizeMask] == null)
@@ -554,11 +683,22 @@ namespace imlac
 
             return _instructionCache[address & Memory.SizeMask];
         }
+       
+
+        
 
         // SGR-1 mode switches
         private bool _fxyOn; 
         private bool _fxyDRJMOn; 
         private bool _fxyBeamOn;
+
+        // CAM data -- enabled bit and base address.
+        private bool _camEnabled;
+        private ushort _caBase;
+        private int _camStackDepth;
+
+        protected ushort _camWord;
+        protected ImmediateHalf _camHalf;
 
         /// <summary>
         /// TODO: All available PDS-4 docs insist that the X/Y AC LSB is four bits wide.

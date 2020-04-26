@@ -71,6 +71,8 @@ namespace imlac
             _displayList = new List<Vector>(_displayListSize);
             _displayListIndex = 0;
 
+            _blink = false;
+
             //
             // Prepopulate the display list with Vectors.  Only those used in the current frame are
             // actually rendered, we prepopulate the list to prevent having to cons up new ones
@@ -78,7 +80,7 @@ namespace imlac
             //
             for (int i = 0; i < _displayListSize; i++)
             {
-                _displayList.Add(new Vector(DrawingMode.Off, 0, 0, 0, 0));
+                _displayList.Add(new Vector(DrawingMode.Off, 1.0f, false, 0, 0, 0, 0));
             }
 
             BuildKeyMappings();
@@ -116,6 +118,16 @@ namespace imlac
         {
             get { return (ushort)_dataSwitches; }
         } 
+
+        public int MouseX
+        {
+            get { return _mouseX; }
+        }
+
+        public int MouseY
+        {
+            get { return _mouseY; }
+        }
 
         public bool ThrottleFramerate
         {
@@ -187,6 +199,16 @@ namespace imlac
 
             _scaleFactor = scale;
             UpdateDisplayScale();
+        }
+
+        public void SetIntensity(int intensity)
+        {
+            _intensity = ((float)intensity / 16.0f);
+        }
+
+        public void SetBlink(bool on)
+        {
+            _blink = on;
         }
 
         public void MapDataSwitch(uint switchNumber, VKeys key)
@@ -306,8 +328,8 @@ namespace imlac
             }
         }
 
-        public void MoveAbsolute(uint x, uint y, DrawingMode mode)
-        {            
+        public void MoveAbsolute(int x, int y, DrawingMode mode)
+        {
             //
             // Take coordinates as an 11-bit quantity (0-2048) even though we may not be displaying the full resolution.
             //
@@ -320,7 +342,7 @@ namespace imlac
             _y = y;
         }
 
-        public void DrawPoint(uint x, uint y)
+        public void DrawPoint(int x, int y)
         {
             _x = x;
             _y = y;
@@ -380,6 +402,11 @@ namespace imlac
 
                         case SDL.SDL_EventType.SDL_KEYUP:
                             SdlKeyUp(e.key.keysym.sym);
+                            break;
+
+
+                        case SDL.SDL_EventType.SDL_MOUSEMOTION:
+                            SdlMouseMove(e.motion.x, e.motion.y);
                             break;
                     }
                 }
@@ -463,6 +490,13 @@ namespace imlac
             }
         }
 
+        private void SdlMouseMove(int x, int y)
+        {
+            _mouseX = x;
+            _mouseY = y;
+        }
+
+
         void FullScreenToggle()
         {
             _fullScreen = !_fullScreen;
@@ -493,6 +527,12 @@ namespace imlac
             _lock.EnterReadLock();
             _frame++;
 
+            // Blinking items are on for 16 frames, off for 16.
+            if ((_frame % 16) == 0)
+            {
+                _frameBlink = !_frameBlink;
+            }
+
             //
             // If we're drawing a complete frame (not running in debug mode)
             // fade out the last frame by drawing an alpha-blended black rectangle over the display.
@@ -513,7 +553,7 @@ namespace imlac
             // And draw in this frame's vectors
             for (int i = 0; i < _displayListIndex; i++)
             {                
-                _displayList[i].Draw(_sdlRenderer);
+                _displayList[i].Draw(_sdlRenderer, _frameBlink);
             }            
             
             SDL.SDL_RenderPresent(_sdlRenderer);
@@ -531,22 +571,22 @@ namespace imlac
             _syncEvent.Set();
         }
 
-        private void AddNewVector(DrawingMode mode, uint startX, uint startY, uint endX, uint endY)
+        private void AddNewVector(DrawingMode mode, int startX, int startY, int endX, int endY)
         {
             //
             // Scale the vector to the current scaling factor.
             // The Imlac specifies 11 bits of resolution (2048 points in X and Y)
             // which corresponds to a _scaleFactor of 1.0.
             //
-            startX = (uint)(startX * _scaleFactor + _xOffset);
-            startY = (uint)(startY *_scaleFactor - _yOffset);
-            endX = (uint)(endX * _scaleFactor + _xOffset);
-            endY = (uint)(endY * _scaleFactor - _yOffset);
+            startX = (int)(startX * _scaleFactor + _xOffset);
+            startY = (int)(startY *_scaleFactor - _yOffset);
+            endX = (int)(endX * _scaleFactor + _xOffset);
+            endY = (int)(endY * _scaleFactor - _yOffset);
 
             _lock.EnterWriteLock();
 
             Vector newVector = _displayList[_displayListIndex];
-            newVector.Modify(mode, (short)startX, (short)(_yResolution - startY), (short)endX, (short)(_yResolution - endY));
+            newVector.Modify(mode, _intensity, _blink, (short)startX, (short)(_yResolution - startY), (short)endX, (short)(_yResolution - endY));
             _displayListIndex++;
 
             _lock.ExitWriteLock();
@@ -559,9 +599,12 @@ namespace imlac
 
         private class Vector
         {
-            public Vector(DrawingMode mode, uint startX, uint startY, uint endX, uint endY)
+            public Vector(DrawingMode mode, float intensity, bool blink, uint startX, uint startY, uint endX, uint endY)
             {
                 _mode = mode;
+                _intensity = intensity;
+                _blink = blink;
+                
                 _x1 = (int)startX;
                 _y1 = (int)startY;
                 _x2 = (int)endX;
@@ -570,26 +613,42 @@ namespace imlac
                 UpdateColor();
             }
 
-            public void Modify(DrawingMode mode, short startX, short startY, short endX, short endY)
+            public void Modify(DrawingMode mode, float intensity, bool blink, short startX, short startY, short endX, short endY)
             {
                 if (_mode != mode)
                 {
                     _mode = mode;
                 }
 
-                UpdateColor();
+                if (blink)
+                {
+                    Console.WriteLine("blink {0},{1}-{2},{3}", startX, startY, endX, endY);
+                }
 
+                _intensity = intensity;
+                _blink = blink;
                 _x1 = (int)startX;
                 _y1 = (int)startY;
                 _x2 = (int)endX;
                 _y2 = (int)endY;
+                UpdateColor();
             }
 
-            public void Draw(IntPtr sdlRenderer)
+            public void Draw(IntPtr sdlRenderer, bool blinkOn)
             {
                 // TODO: handle dotted lines, line thickness options
-                SDL.SDL_SetRenderDrawColor(sdlRenderer, _color.R, _color.G, _color.B, _color.A);
-                SDL.SDL_RenderDrawLine(sdlRenderer, _x1, _y1, _x2, _y2);
+                
+                if (!_blink || blinkOn)
+                {
+                    SDL.SDL_SetRenderDrawColor(
+                        sdlRenderer,
+                        (byte)(_color.R * _intensity),
+                        (byte)(_color.G * _intensity),
+                        (byte)(_color.B * _intensity),
+                        _color.A);
+
+                    SDL.SDL_RenderDrawLine(sdlRenderer, _x1, _y1, _x2, _y2);
+                }
             }
 
             private void UpdateColor()
@@ -625,12 +684,14 @@ namespace imlac
 
             private DrawingMode _mode;
             private Color _color;
+            private float _intensity;
+            private bool _blink;
             private int _x1;
             private int _y1;
             private int _x2;
             private int _y2;
 
-            private static Color NormalColor = Color.FromArgb(200, Color.ForestGreen);
+            private static Color NormalColor = Color.FromArgb(255, Color.GreenYellow);
             private static Color PointColor = Color.FromArgb(255, Color.GreenYellow);
             private static Color SGRColor = Color.FromArgb(127, Color.DarkGreen);
             private static Color DebugColor = Color.FromArgb(255, Color.OrangeRed);
@@ -886,7 +947,15 @@ namespace imlac
         };
 
         private int _dataSwitches;
-        private DataSwitchMappingMode _dataSwitchMappingMode;        
+        private DataSwitchMappingMode _dataSwitchMappingMode;
+
+        //
+        // Mouse Data
+        //
+        private int _mouseX;
+        private int _mouseY;
+        private int _mouseButtons;
+
 
         //
         // SDL
@@ -909,12 +978,15 @@ namespace imlac
 
         private AutoResetEvent _syncEvent;
         
-        private uint _x;
-        private uint _y;
+        private int _x;
+        private int _y;
 
         private int _xResolution;
         private int _yResolution;
         private float _scaleFactor;
+        private float _intensity;
+        private bool _blink;        // The Blink attribute is applied to vectors while this is set.
+        private bool _frameBlink;   // Blink'ed vectors are blanked while this is set (toggled every 16 frames).
         private int _xOffset;
         private int _yOffset;
         private bool _renderCompleteFrame;

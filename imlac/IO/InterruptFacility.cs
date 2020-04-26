@@ -74,39 +74,81 @@ namespace imlac.IO
                 // Collect up devices that want to interrupt us.
                 _interruptStatus = 0;
 
-                // bit 14: 40 cycle sync
-                if (_system.DisplayProcessor.FrameLatch)
+                //
+                // PDS-1 and PDS-4 status bits are arranged almost entirely differently.
+                //
+                if (Configuration.CPUType == ImlacCPUType.PDS1)
                 {
-                    _interruptStatus |= 0x0002;
-                }
+                    // PDS-1:
 
-                // bit 12 - TTY rcv
-                if (_system.TTY.DataReady)
-                {
-                    _interruptStatus |= 0x0008;
-                }
+                    // bit 14: 40 cycle sync
+                    if (_system.DisplayProcessor.FrameLatch)
+                    {
+                        _interruptStatus |= 0x0002;
+                    }
 
-                // bit 11 - keyboard
-                if (_system.Keyboard.KeyReady)
-                {
-                    _interruptStatus |= 0x0010;
-                }
+                    // bit 12 - TTY rcv
+                    if (_system.TTY.DataReady)
+                    {
+                        _interruptStatus |= 0x0008;
+                    }
 
-                // bit 10 - TTY send
-                if (_system.TTY.DataSentLatch)
-                {
-                    _interruptStatus |= 0x0020;
-                }
+                    // bit 11 - keyboard
+                    if (_system.Keyboard.KeyReady)
+                    {
+                        _interruptStatus |= 0x0010;
+                    }
 
-                // bit 2 - ACI-1 (clock)
-                if (_system.Clock.TimerTriggered)
+                    // bit 10 - TTY send
+                    if (_system.TTY.DataSentLatch)
+                    {
+                        _interruptStatus |= 0x0020;
+                    }
+
+                    // bit 2 - ACI-1 (clock)
+                    if (_system.Clock.TimerTriggered)
+                    {
+                        _interruptStatus |= 0x2000;
+                    }
+                }
+                else
                 {
-                    _interruptStatus |= 0x2000;
+                    // PDS-4:
+
+                    // Bit 15: Display halt
+                    if (_system.DisplayProcessor.IsHalted)
+                    {
+                        _interruptStatus |= 0x0001;
+                    }
+
+                    // Bit 14: 40 cycle sync
+                    if (_system.DisplayProcessor.FrameLatch)
+                    {
+                        _interruptStatus |= 0x0002;
+                    }
+
+                    // Bit 2: TTY Send
+                    if (_system.TTY.DataSentLatch)
+                    {
+                        _interruptStatus |= 0x2000;
+                    }
+
+                    // Bit 1: TTY Receive
+                    if (_system.TTY.DataReady)
+                    {
+                        _interruptStatus |= 0x4000;
+                    }
+
+                    // Bit 0: TTY Keyboard
+                    if (_system.Keyboard.KeyReady)
+                    {
+                        _interruptStatus |= 0x8000;
+                    }
                 }
 
                 // mask it with our interrupt mask and if non-zero then we have a pending interrupt,
                 // which we will execute at the start of the next CPU instruction.
-                if ((_interruptMask & _interruptStatus) != 0)
+                if (_interruptsEnabled && (_interruptMask & _interruptStatus) != 0)
                 {
                     _interruptPending = true;
                 }
@@ -115,7 +157,7 @@ namespace imlac.IO
                 // If we have an interrupt pending and the processor is starting the next instruction
                 // we will interrupt now, otherwise we wait until the processor is ready.
                 //
-                if (_interruptPending && _system.Processor.InstructionState == ExecState.Fetch)
+                if (_interruptPending && _system.Processor.CanBeInterrupted())
                 {
                     // save the current PC at 0
                     _system.Memory.Store(0x0000, _system.Processor.PC);
@@ -158,7 +200,13 @@ namespace imlac.IO
 
                 case 0x41:
                     _system.Processor.AC |= (ushort)(_interruptStatus);
-                    Trace.Log(LogType.Interrupt, "Interrupt status {0} copied to AC", Helpers.ToOctal((ushort)_interruptStatus));
+                    Trace.Log(LogType.Interrupt, "Interrupt status word 1 {0} copied to AC", Helpers.ToOctal((ushort)_interruptStatus));
+                    break;
+
+                case 0x42:
+                    // TODO: implement second status register when we have devices that use it
+                    // implemented.
+                    Trace.Log(LogType.Interrupt, "Interrupt status word 2 STUB.");
                     break;
 
                 case 0x61:
@@ -168,7 +216,7 @@ namespace imlac.IO
 
 
                 default:
-                    throw new NotImplementedException(String.Format("Unimplemented Interrupt IOT instruction {0:x4}", iotCode));
+                    throw new NotImplementedException(String.Format("Unimplemented Interrupt IOT instruction {0}", Helpers.ToOctal((ushort)iotCode)));
             }
         }
 
@@ -186,8 +234,8 @@ namespace imlac.IO
                 0x71,       // IOF (disable interrupts)
                 0x72,       // ION (enabled masked interrupts)
 
-                // PDS-4 2nd level interrupt facility
-                0x42,       // read interrupt status bits word two
+                // 2nd level interrupt facility
+                0x42,       // Read Interrupt Status Bits Word Two
                 0x89,       // Read 2nd Level Interrupt status
                 0x91,       // Disable 2nd Level Interrupts
                 0x92,       // Enable 2nd Level Interrupts

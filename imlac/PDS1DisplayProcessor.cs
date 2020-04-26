@@ -119,7 +119,7 @@ namespace imlac
                     break;
 
                 case 0x0a:      // Halt display processor
-                    State = ProcessorState.Halted;
+                    HaltProcessor();
                     break;
 
                 case 0x39:      // Clear display 40Hz sync latch
@@ -128,10 +128,7 @@ namespace imlac
 
                 case 0xc4:      // clear halt state
                     // TODO: what does this actually do?
-                    //State = ProcessorState.Running;
-
-                    // MIT DADR bit gets reset when display is started.
-                    _dadr = false;
+                    _halted = false;
                     break;
 
                 default:
@@ -187,7 +184,7 @@ namespace imlac
                     {
                         // DHLT -- halt the display processor.  other micro-ops in this
                         // instruction are still run.
-                        State = ProcessorState.Halted;
+                        HaltProcessor();
                     }
 
                     if ((instruction.Data & 0x400) != 0)
@@ -292,7 +289,7 @@ namespace imlac
                     break;
 
                 case DisplayOpcode.DLXA:
-                    X = (uint)(instruction.Data << 1);
+                    X = instruction.Data << 1;
 
                     DrawingMode mode;
                     if (_sgrModeOn && _sgrBeamOn)
@@ -319,7 +316,7 @@ namespace imlac
                     break;
 
                 case DisplayOpcode.DLYA:                    
-                    Y = (uint)(instruction.Data << 1);
+                    Y = instruction.Data << 1;
                     
                     if (_sgrModeOn && _sgrBeamOn)
                     {
@@ -371,7 +368,10 @@ namespace imlac
         private void ExecuteIncrement()
         {
             int halfWord = _immediateHalf == ImmediateHalf.First ? (_immediateWord & 0xff00) >> 8 : (_immediateWord & 0xff);
-            
+
+            int newX = (int)X;
+            int newY = (int)Y;
+
             // translate the half word to vector movements or escapes
             if ((halfWord & 0x80) == 0)
             {
@@ -398,29 +398,29 @@ namespace imlac
                 
                 if ((halfWord & 0x10) != 0)
                 {
-                    X += 0x20;
+                    newX += 0x20;
                     if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "Increment X MSB, X is now {0}", X);
                 }
 
                 if ((halfWord & 0x08) != 0)
                 {
-                    X = X & (0xffe0);
+                    newX = newX & (0xffe0);
                     if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "Reset X LSB, X is now {0}", X);
                 }
 
                 if ((halfWord & 0x02) != 0)
                 {
-                    Y += 0x20;
+                    newY += 0x20;
                     if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "Increment Y MSB, Y is now {0}", Y);
                 }
 
                 if ((halfWord & 0x01) != 0)
                 {
-                    Y = Y & (0xffe0);
+                    newY = newY & (0xffe0);
                     if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "Reset Y LSB, Y is now {0}", Y);
                 }
                 
-                _system.Display.MoveAbsolute(X, Y, DrawingMode.Off);
+                _system.Display.MoveAbsolute(newX, newY, DrawingMode.Off);
                 
             }
             else
@@ -431,14 +431,27 @@ namespace imlac
                 int ySign = (int)(((halfWord & 0x04) == 0) ? 1 : -1);
                 int yMag = (int)((halfWord & 0x03) * _scale);
 
-                if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "Inc mode ({0}:{1}), x={2} y={3} dx={4} dy={5} beamon {6}", Helpers.ToOctal((ushort)_pc), Helpers.ToOctal((ushort)halfWord), X, Y, xSign * xMag, ySign * yMag, (halfWord & 0x40) != 0);
+                if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, 
+                    "Inc mode ({0}:{1}), x={2} y={3} dx={4} dy={5} beamon {6}", 
+                    Helpers.ToOctal((ushort)_pc), 
+                    Helpers.ToOctal((ushort)halfWord), 
+                    newX, 
+                    newY, 
+                    xSign * xMag, 
+                    ySign * yMag, 
+                    (halfWord & 0x40) != 0);
 
-                X = (uint)(X + xSign * xMag * 2);
-                Y = (uint)(Y + ySign * yMag * 2);
-                _system.Display.MoveAbsolute(X, Y, (halfWord & 0x40) == 0 ? DrawingMode.Off : DrawingMode.Normal);
+                newX = (int)(newX + xSign * xMag * 2);
+                newY = (int)(newY + ySign * yMag * 2);
+
+                _system.Display.MoveAbsolute(newX, newY, (halfWord & 0x40) == 0 ? DrawingMode.Off : DrawingMode.Dotted);
 
                 MoveToNextHalfWord();
             }
+
+            // Assign back to X, Y registers; clipping into range.
+            X = newX;
+            Y = newY;
 
             // If the next instruction has a breakpoint set we'll halt at this point, before executing it.
             if (_immediateHalf == ImmediateHalf.First && BreakpointManager.TestBreakpoint(BreakpointType.Display, _pc))
@@ -510,14 +523,23 @@ namespace imlac
             // * 2 for translation to 11-bit space
             // The docs don't call this out, but the scale setting used in increment mode appears to apply
             // to the LVH vectors as well.  (Maze appears to rely on this.)
-            X = (uint)(X + (dx * dxSign) * 2 * _scale);
-            Y = (uint)(Y + (dy * dySign) * 2 * _scale);
+            int newX = (int)(X + (dx * dxSign) * 2 * _scale);
+            int newY = (int)(Y + (dy * dySign) * 2 * _scale);
 
-            if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "LongVector, move complete - x={0} y={1}", X, Y, dx * dxSign, dy * dySign, beamOn, dotted);
+            if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "LongVector, move complete - x={0} y={1}", newX, newY, dx * dxSign, dy * dySign, beamOn, dotted);
 
-            _system.Display.MoveAbsolute(X, Y, beamOn ? (dotted ? DrawingMode.Dotted : DrawingMode.Normal) : DrawingMode.Off);
+            _system.Display.MoveAbsolute(newX, newY, beamOn ? (dotted ? DrawingMode.Dotted : DrawingMode.Normal) : DrawingMode.Off);
+
+            // Assign back to X, Y registers; clipping into range.
+            X = newX;
+            Y = newY;
 
             _pc++;
+        }
+
+        private void ReturnFromDisplaySubroutine()
+        {
+            Pop();
         }
 
         private PDS1DisplayInstruction GetCachedInstruction(ushort address, DisplayProcessorMode mode)
@@ -610,9 +632,9 @@ namespace imlac
                         _opcode = DisplayOpcode.DEIM;
                         _data = (ushort)(_word & 0xff);
 
-                        if ((_word & 0x0800) != 0)
+                        if ((_word & 0xff00) == 0x3800)
                         {
-                            Console.Write("PPM-1 not implemented (instr {0})", Helpers.ToOctal(_word));
+                            Console.WriteLine("PPM-1 not implemented (instr {0})", Helpers.ToOctal(_word));
                         }
                         break;
 

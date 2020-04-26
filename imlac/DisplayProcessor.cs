@@ -27,7 +27,9 @@ namespace imlac
     {
         Indeterminate,
         Processor,
-        Increment
+        Increment,
+        MediumVector,
+        CompactAddressing,
     }   
 
     public enum ImmediateHalf
@@ -53,6 +55,7 @@ namespace imlac
         public virtual void Reset()
         {
             State = ProcessorState.Halted;
+            _halted = false;
             _mode = DisplayProcessorMode.Processor;
             _pc = 0;
             _block = 0;
@@ -63,7 +66,7 @@ namespace imlac
 
             _dadr = false;
             
-            _system.Display.MoveAbsolute(X, Y, DrawingMode.Off);
+            _system.Display.MoveAbsolute(0, 0, DrawingMode.Off);
 
             _clocks = 0;
             _frameLatch = false;
@@ -105,6 +108,11 @@ namespace imlac
             }
         }
 
+        public bool IsHalted
+        {
+            get { return _halted; }
+        }
+
         public DisplayProcessorMode Mode
         {
             get { return _mode; }
@@ -137,7 +145,7 @@ namespace imlac
             set { _frameLatch = value; }
         }
 
-        public uint X
+        public int X
         {
             get { return _x; }
             set 
@@ -146,7 +154,7 @@ namespace imlac
             }
         }
 
-        public uint Y
+        public int Y
         {
             get { return _y; }
             set 
@@ -183,6 +191,20 @@ namespace imlac
             }
         }
 
+        public virtual void StartProcessor()
+        {
+            State = ProcessorState.Running;
+            // MIT DADR bit gets reset when display is started.
+            _dadr = false;
+            _halted = false;
+        }
+
+        public virtual void HaltProcessor()
+        {
+            State = ProcessorState.Halted;
+            _halted = true;
+        }
+
         public abstract void InitializeCache();
 
         public abstract void InvalidateCache(ushort address);
@@ -195,13 +217,8 @@ namespace imlac
 
         public abstract void ExecuteIOT(int iotCode);
 
-        protected void ReturnFromDisplaySubroutine()
-        {
-            Pop();
-        }
-
-        protected uint _x;
-        protected uint _y;
+        protected int _x;
+        protected int _y;
         protected float _scale;
         protected ushort _pc;
         protected ushort _block;
@@ -219,6 +236,9 @@ namespace imlac
         protected bool _frameLatch;
 
         protected ProcessorState _state;
+        protected bool _halted;                           // The Halted flag is independent of the current state.
+                                                          // (i.e. it is set when the processor gets halted, but can later be cleared
+                                                          //  whiile the display remains halted.)           
         protected DisplayProcessorMode _mode;
         protected ImlacSystem _system;
         protected Memory _mem;

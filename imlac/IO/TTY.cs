@@ -78,7 +78,7 @@ namespace imlac.IO
             if (_dataBufferFull && _dataChannel.OutputReady)
             {
                 _dataChannel.Write(_txData);
-                Trace.Log(LogType.TTY, "o");
+                Trace.Log(LogType.TTY, "o {0}", Helpers.ToOctal(_txData));
                 _dataBufferFull = false;
                 _dataSentLatch = true;
             }

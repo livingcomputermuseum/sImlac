@@ -173,6 +173,16 @@ namespace imlac
             get;
         }
 
+        int MouseX
+        {
+            get;
+        }
+
+        int MouseY
+        {
+            get;
+        }
+
         bool ThrottleFramerate
         {
             get;
@@ -201,15 +211,19 @@ namespace imlac
 
         void ClearDisplay();
 
-        void MoveAbsolute(uint x, uint y, DrawingMode mode);
+        void MoveAbsolute(int x, int y, DrawingMode mode);
 
-        void DrawPoint(uint x, uint y);
+        void DrawPoint(int x, int y);
 
         void RenderCurrent(bool completeFrame);
 
         void FrameDone();
 
         void SetScale(float scale);
+
+        void SetIntensity(int intensity);
+
+        void SetBlink(bool on);
 
         void MapDataSwitch(uint switchNumber, VKeys key);
 

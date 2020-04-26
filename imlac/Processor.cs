@@ -34,6 +34,7 @@ namespace imlac
     {
         Fetch,
         Defer,
+        ExtraDefer,
         Execute
     }
 
@@ -59,6 +60,7 @@ namespace imlac
             _currentIndirectAddress = 0x0000;
             _instructionState = ExecState.Fetch;
             _state = ProcessorState.Halted;
+            _byteAccess = ByteAccess.Normal;
         }
 
         public void RegisterDeviceIOTs(IIOTDevice device)
@@ -122,6 +124,13 @@ namespace imlac
         public ushort BreakpointAddress
         {
             get { return _breakpointAddress; }
+        }
+
+        public bool CanBeInterrupted()
+        {
+            // We can be interrupted while in the Fetch state, iff we are not executing
+            // an instruction modified by SBR or SBL (byte-wise two-instruction ops are atomic).
+            return _instructionState == ExecState.Fetch && _byteAccess == ByteAccess.Normal;
         }
 
         public string Disassemble(ushort address)
@@ -195,21 +204,49 @@ namespace imlac
                 case ExecState.Defer:
                     //
                     // Get the indirect address for this instruction.
-                    // 
+                    // On the PDS-4, indirection can continue indefinitely.
+                    //
                     ushort effectiveAddress = GetEffectiveAddress(_currentInstruction.Data);
+
                     _currentIndirectAddress = _mem.Fetch(effectiveAddress);
 
-                    //
-                    // If this is an auto-increment indirect index register (octal locations 10-17 on each 2k page)
-                    // then we will increment the contents (and the indirect address).
-                    //
-                    if ((effectiveAddress & 0x7ff) >= 0x08 && (effectiveAddress & 0x7ff) < 0x10)
+                    if (Configuration.CPUType == ImlacCPUType.PDS1 ||
+                        (_pc >= 0x20 && _pc < 0x40) || _pc == 0x3ff7 || _pc == 0x3fe6) // latter is a hack to fix broken bootstrap on pds-4
                     {
-                        _currentIndirectAddress++;
-                        _mem.Store(effectiveAddress, (ushort)(_currentIndirectAddress));
+                        // done, only one level of indirection on the PDS-1.
+                        _instructionState = ExecState.Execute;
                     }
+                    else
+                    {
+                        if ((_currentIndirectAddress & 0x8000) != 0)
+                        {
+                            // Indirect bit is set -- continue for another level of indirection.
+                            _instructionState = ExecState.ExtraDefer;
+                        }
+                        else
+                        {
+                            _instructionState = ExecState.Execute;
+                        }
+                    }
+
+                    AutoIncrement(effectiveAddress);
+                    break;
+
+                case ExecState.ExtraDefer:
+
+                    // Continue indirection using the current indirect address:
+                    _currentIndirectAddress = _mem.Fetch(_currentIndirectAddress);
                     
-                    _instructionState = ExecState.Execute;
+                    if ((_currentIndirectAddress & 0x8000) == 0)
+                    {
+                        // Indirect bit is unset; exit from this state and finally
+                        // go execute the instruction.
+                        _instructionState = ExecState.Execute;
+                    }
+
+                    // TODO: Do auto-index locations apply for multiple indirects?
+                    AutoIncrement(_currentIndirectAddress);
+
                     break;
 
                 case ExecState.Execute:
@@ -220,6 +257,26 @@ namespace imlac
                     _instructionState = ExecState.Fetch;
                     break;
 
+            }
+        }
+
+        private void AutoIncrement(ushort effectiveAddress)
+        {
+            //
+            // If this is an auto-increment indirect index register (octal locations 10-17 on each 2k page)
+            // then we will increment the contents (and the indirect address).
+            // On the PDS-4 there are auto-decrement registers at octal 20-27).
+            //
+            if ((effectiveAddress & 0x7ff) >= 0x08 && (effectiveAddress & 0x7ff) < 0x10)
+            {
+                _currentIndirectAddress++;
+                _mem.Store(effectiveAddress, (ushort)(_currentIndirectAddress));
+            }
+            else if (Configuration.CPUType == ImlacCPUType.PDS4 &&
+                (effectiveAddress & 0x7ff) >= 0x10 && (effectiveAddress & 0x7ff) < 0x18)
+            {
+                _currentIndirectAddress--;
+                _mem.Store(effectiveAddress, (ushort)(_currentIndirectAddress));
             }
         }
 
@@ -239,7 +296,7 @@ namespace imlac
             ushort q;
             uint res;
 
-            if (Trace.TraceOn) Trace.Log(LogType.Processor, "{0} - {1}", _pc, _currentInstruction.Disassemble(_pc));
+            // if (Trace.TraceOn) Trace.Log(LogType.Processor, "{0} - {1}", _pc, _currentInstruction.Disassemble(_pc));
 
             switch (_currentInstruction.Opcode)
             {
@@ -267,8 +324,14 @@ namespace imlac
                     _pc++;
                     break;
 
+                case Opcode.DACS:
+                    _sp[_currentInstruction.Data] = _ac;
+                    _pc++;
+                    break;
+
                 case Opcode.DCM:    // PDS-4 only
                     // Decrement memory by 1
+                    _byteAccess = ByteAccess.Normal;
                     q = DoFetchForCurrentInstruction();
                     DoStoreForCurrentInstruction((ushort)(q - 1));
                     _pc++;
@@ -295,6 +358,7 @@ namespace imlac
                     break;
 
                 case Opcode.ISZ:
+                    _byteAccess = ByteAccess.Normal;
                     q = DoFetchForCurrentInstruction();
                     q++;
                     DoStoreForCurrentInstruction(q);
@@ -308,6 +372,7 @@ namespace imlac
                     break;
 
                 case Opcode.JMP:
+                    _byteAccess = ByteAccess.Normal;
                     if (_currentInstruction.IsIndirect)
                     {
                         _pc = _currentIndirectAddress;
@@ -319,6 +384,7 @@ namespace imlac
                     break;
 
                 case Opcode.JMS:
+                    _byteAccess = ByteAccess.Normal;
                     // Store next PC at location specified by instruction (Q),
                     // continue execution at Q+1
                     DoStoreForCurrentInstruction((ushort)(_pc + 1));
@@ -338,9 +404,15 @@ namespace imlac
                     _pc++;
                     break;
 
+                case Opcode.LACS:
+                    _ac = _sp[_currentInstruction.Data];
+                    _pc++;
+                    break;
+
                 case Opcode.LAMP:   // PDS-4 only
                     // Flashes a keyboard indicator lamp for 150ms.
                     // At this time, thou cannot GET ye LAMP.
+                    Console.WriteLine("*LAMP*");
                     _pc++;
                     break;
 
@@ -350,6 +422,7 @@ namespace imlac
                     break;
 
                 case Opcode.LIAC:
+                    // TODO: Are byte accesses allowed here?  Manual doesn't say.
                     _ac = DoFetchForAddress(_ac);
                     _pc++;
                     break;
@@ -462,7 +535,7 @@ namespace imlac
 
                     if (_currentInstruction.DisplayOn)
                     {
-                        _system.DisplayProcessor.State = ProcessorState.Running;
+                        _system.DisplayProcessor.StartProcessor();
                     }
 
                     _pc++;
@@ -478,7 +551,7 @@ namespace imlac
 
                     if (_currentInstruction.DisplayOn)
                     {
-                        _system.DisplayProcessor.State = ProcessorState.Running;
+                        _system.DisplayProcessor.StartProcessor();
                     }
 
                     _pc++;
@@ -528,7 +601,7 @@ namespace imlac
 
                     if (_currentInstruction.DisplayOn)
                     {
-                        _system.DisplayProcessor.State = ProcessorState.Running;
+                        _system.DisplayProcessor.StartProcessor();
                     }
 
                     _pc++;
@@ -555,9 +628,19 @@ namespace imlac
 
                     if (_currentInstruction.DisplayOn)
                     {
-                        _system.DisplayProcessor.State = ProcessorState.Running;
+                        _system.DisplayProcessor.StartProcessor();
                     }
 
+                    _pc++;
+                    break;
+
+                case Opcode.SBL:    // PDS-4 only
+                    _byteAccess = ByteAccess.Left;
+                    _pc++;
+                    break;
+
+                case Opcode.SBR:    // PDS-4 only
+                    _byteAccess = ByteAccess.Right;
                     _pc++;
                     break;
 
@@ -685,12 +768,22 @@ namespace imlac
                     throw new NotImplementedException(String.Format("Unimplemented Opcode {0}", _currentInstruction.Opcode));
             }
 
+            //
+            // If this isn't an SBL/SBR instruction, reset the byte access mode
+            // now that we're done with the modified instruction.
+            //
+            if (_currentInstruction.Opcode != Opcode.SBL &&
+                _currentInstruction.Opcode != Opcode.SBR)
+            {
+                _byteAccess = ByteAccess.Normal;
+            }
+
             // If the next instruction has a breakpoint set we'll halt at this point, before executing it.
             if (BreakpointManager.TestBreakpoint(BreakpointType.Execution, _pc))
             {
                 _state = ProcessorState.BreakpointHalt;
                 _breakpointAddress = _pc;
-            }
+            }           
         }
 
         private void DoIOT()
@@ -717,14 +810,27 @@ namespace imlac
             }
             else
             {
-               Trace.Log(LogType.Processor, "Unimplemented IOT device {0}, IOT opcode {1}", Helpers.ToOctal((ushort)_currentInstruction.IOTDevice), Helpers.ToOctal(_currentInstruction.Data));
+               Trace.Log(LogType.Processor, "Unimplemented IOT device {0}, IOT opcode {1}", Helpers.ToOctal((ushort)_currentInstruction.IOTDevice), Helpers.ToOctal(_currentInstruction.Data));                
             }            
         }
 
         private ushort DoFetchForCurrentInstruction()
         {
             ushort effectiveAddress = _currentInstruction.IsIndirect ? _currentIndirectAddress : GetEffectiveAddress(_currentInstruction.Data);
-            return DoFetchForAddress(effectiveAddress);
+            ushort value = DoFetchForAddress(effectiveAddress);
+
+            switch (_byteAccess)
+            {
+                case ByteAccess.Left:
+                    value = (ushort)(value >> 8);
+                    break;
+
+                case ByteAccess.Right:
+                    value = (ushort)(value & 0xff);
+                    break;
+            }
+
+            return value;
         }
 
         private ushort DoFetchForAddress(ushort effectiveAddress)
@@ -755,7 +861,26 @@ namespace imlac
                 _breakpointAddress = effectiveAddress;
             }
 
-            _mem.Store(effectiveAddress, word);
+            switch (_byteAccess)
+            {
+                case ByteAccess.Normal:
+                    _mem.Store(effectiveAddress, word);
+                    break;
+
+                case ByteAccess.Left:
+                    {
+                        ushort value = _mem.Fetch(effectiveAddress);
+                        _mem.Store(effectiveAddress, (ushort)((value & 0xff) | (word << 8)));
+                    }
+                    break;
+
+                case ByteAccess.Right:
+                    {
+                        ushort value = _mem.Fetch(effectiveAddress);
+                        _mem.Store(effectiveAddress, (ushort)((value & 0xff00) | (word & 0xff)));
+                    }
+                    break;
+            }
         }
 
         private void Push(ushort pointer, ushort value)
@@ -790,7 +915,10 @@ namespace imlac
         //
         private ushort[] _sp = new ushort[2];
 
-         
+        //
+        // PDS-4 byte access mode set by SBL, SBR
+        //
+        private ByteAccess _byteAccess;
 
         //
         // Debug information -- the PC at which the last breakpoint occurred.
@@ -807,6 +935,13 @@ namespace imlac
         // IOT dispatch table
         //
         private IIOTDevice[] _iotDispatch;
+
+        private enum ByteAccess
+        {
+            Normal = 0,
+            Left,
+            Right
+        }
 
         private enum Opcode
         {
@@ -1467,10 +1602,10 @@ namespace imlac
 
             private bool DecodeAct2Class(ushort word)
             {
-                // Act 2 Class instructions have 0 001 000 011 in bits 0-9
+                // Act 2 Class instructions have 1 000 011 000 in bits 0-9
                 // and are only valid on PDS-4 processors.
                 if (Configuration.CPUType == ImlacCPUType.PDS4 && 
-                    (word & 0xffc0) == 0x10c0)
+                    (word & 0xffc0) == 0x8600)
                 {
                     _operateOrIOT = false;  // All require two cycles
 
