@@ -56,6 +56,9 @@ namespace imlac
             _pc = 0x0020;   // 40 oct, standard bootstrap address
             _ac = 0x0000;
             _link = 0;
+            _sp[0] = 0;
+            _sp[1] = 0;
+
             _currentInstruction = null;
             _currentIndirectAddress = 0x0000;
             _instructionState = ExecState.Fetch;

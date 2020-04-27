@@ -36,6 +36,10 @@ namespace imlac.IO
             _dataSendReady = true;
             _dataReady = false;
             _clocks = 0;
+            _dataBufferFull = false;
+            _dataSentLatch = false;
+            _rxData = 0;
+            _txData = 0;            
 
             if (_dataChannel != null)
             {

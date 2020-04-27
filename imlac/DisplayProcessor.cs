@@ -54,14 +54,17 @@ namespace imlac
 
         public virtual void Reset()
         {
-            State = ProcessorState.Halted;
+            _state = ProcessorState.Halted;
             _halted = false;
             _mode = DisplayProcessorMode.Processor;
+            _immediateHalf = ImmediateHalf.First;
+            _immediateWord = 0;
             _pc = 0;
+            _dpcEntry = 0;
             _block = 0;
             _dtStack.Clear();
-            X = 0;
-            Y = 0;
+            _x = 0;
+            _y = 0;
             _scale = 1.0f;
 
             _dadr = false;

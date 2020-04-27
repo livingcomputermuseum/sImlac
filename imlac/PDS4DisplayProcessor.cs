@@ -683,9 +683,6 @@ namespace imlac
 
             return _instructionCache[address & Memory.SizeMask];
         }
-       
-
-        
 
         // SGR-1 mode switches
         private bool _fxyOn; 
