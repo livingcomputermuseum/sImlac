@@ -72,6 +72,7 @@ namespace imlac
             _displayListIndex = 0;
 
             _blink = false;
+            _intensity = 1.0f;
 
             //
             // Prepopulate the display list with Vectors.  Only those used in the current frame are

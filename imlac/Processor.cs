@@ -1115,7 +1115,7 @@ namespace imlac
                         break;
 
                     case Processor.Opcode.LWC:
-                        sb.AppendFormat("LWC {0} !({1})", Helpers.ToOctal(Data), Helpers.ToOctal((ushort)(-Data)));
+                        sb.AppendFormat("LWC {0}\t!({1})", Helpers.ToOctal(Data), Helpers.ToOctal((ushort)(-Data)));
                         break;
 
                     case Processor.Opcode.OPR:
@@ -1208,112 +1208,136 @@ namespace imlac
                 string iot;
                 switch (Data)
                 {
+                    case 0x01:
+                        iot = "DLA\t! Load DPC With AC";
+                        break;
+
                     case 0x02:
                         if (Configuration.CPUType == ImlacCPUType.PDS4)
                         {
-                            iot = "DON";
+                            iot = "DON\t! Display On";
                         }
                         else
                         {
                             // Shouldn't be used on PDS-1 but we'll note it here
-                            iot = "DON (PDS-4)";
+                            iot = "DON (PDS-4)\t! Display On ";
                         }
                         break;
 
                     case 0x03:
-                        iot = "DLA";
+                        if (Configuration.CPUType == ImlacCPUType.PDS4)
+                        {
+                            iot = "DLN\t! Load DPC and Turn Display On";
+                        }
+                        else
+                        {
+                            iot = "DLA\t! Load CP With AC";
+                        }
                         break;
 
                     case 0x09:
-                        iot = "CTB";
+                        iot = "CTB\t! Clear TTY Break";
                         break;
 
                     case 0x0a:
-                        iot = "DOF";
+                        iot = "DOF\t! Turn Display Processor Off";
                         break;
 
                     case 0x11:
-                        iot = "KRB";
+                        iot = "KRB\t! Keyboard Read";
                         break;
 
                     case 0x12:
-                        iot = "KCF";
+                        iot = "KCF\t! Keyboard Clear Flag";
                         break;
 
                     case 0x13:
-                        iot = "KRC";
+                        iot = "KRC\t! Keyboard Read and Clear Flag";
                         break;
 
                     case 0x19:
-                        iot = "RRB";
+                        iot = "RRB\t! TTY Read";
                         break;
 
                     case 0x1a:
-                        iot = "RCF";
+                        iot = "RCF\t! Clear Input TTY Status";
                         break;
 
                     case 0x1b:
-                        iot = "RRC";
+                        iot = "RRC\t! TTY Read and Clear Flag";
                         break;
 
                     case 0x21:
-                        iot = "TPR";
+                        iot = "TPR\t! TTY Transmit";
                         break;
 
                     case 0x22:
-                        iot = "TCF";
+                        iot = "TCF\t! Clear Output TTY Status";
                         break;
 
                     case 0x23:
-                        iot = "TPC";
+                        iot = "TPC\t! TTY Print and Clear Flag";
                         break;
 
                     case 0x29:
-                        iot = "HRB";
+                        iot = "HRB\t! Read Paper Tape Reader";
                         break;
 
                     case 0x2a:
-                        iot = "HOF";
+                        iot = "HOF\t! Stop Paper Tape Reader";
                         break;
 
                     case 0x31:
-                        iot = "HON";
+                        iot = "HON\t! Start Paper Tape Reader";
                         break;
 
                     case 0x32:
-                        iot = "STB";
+                        iot = "STB\t! Set TTY Break";
                         break;
 
                     case 0x39:
-                        iot = "SCF";
+                        iot = "SCF\t! Clear 40 Cycle Sync";
                         break;
 
                     case 0x3a:
-                        iot = "IOS";
-                        break;
-
-                    case 0xb9:
-                        iot = "PPC";
-                        break;
-
-                    case 0xbc:
-                        iot = "PSF";
+                        iot = "IOS\t! IOT Sync";
                         break;
 
                     case 0x71:
-                        iot = "IOF";
+                        iot = "IOF\t! Disable First Level Interrupt";
                         break;
 
                     case 0x72:
-                        iot = "ION";
+                        iot = "ION\t! Enable First Level Interrupt";
+                        break;
+
+                    case 0xb9:
+                        iot = "PPC\t! Punch Accumulator";
+                        break;
+
+                    case 0xbc:
+                        iot = "PSF\t! Skip if Punch Flag is Set";
                         break;
 
                     default:
-                        iot = "IOT " + Helpers.ToOctal(Data);
+                        iot = String.Format("IOT {0}\t! {1}", Helpers.ToOctal(Data), GetIOTDescription(Data));
                         break;
                 }
 
                 return iot;
+            }
+
+            private string GetIOTDescription(int iot)
+            {
+                foreach(IOTDescription desc in _iotDescription)
+                {
+                    if (desc.Code == iot)
+                    {
+                        return desc.Description;
+                    }
+                }
+
+                return "Unknown IOT";
             }
 
             private string DisassembleOPR()
@@ -1761,6 +1785,136 @@ namespace imlac
 
                 return true;
             }
+
+            public struct IOTDescription
+            {
+                public IOTDescription(int code, string description)
+                {
+                    Code = code;
+                    Description = description;
+                }
+
+                public int Code;
+                public string Description;
+            }
+
+            private static IOTDescription[] _iotDescription = new IOTDescription[]
+                {
+                    new IOTDescription(0x41, "Read Interrupt Status (Word One)"),
+                    new IOTDescription(0x42, "Read Interrupt Status (Word Two)"),
+                    new IOTDescription(0x61, "Arm Device Status (Word One)"),
+                    new IOTDescription(0x62, "Arm Device Status (Word Two)"),
+
+                    new IOTDescription(0x89, "Read Second Level Interrupt Status"),
+                    new IOTDescription(0x91, "Disable Second Level Interrupts"),
+                    new IOTDescription(0x92, "Enable Second Level Interrupts"),
+                    new IOTDescription(0x93, "Disable, Enable Second Level Interrupts"),
+
+                    new IOTDescription(0xd1, "Turn on Audible Tone for appx. 2 sec."),
+                    new IOTDescription(0x0c, "CBS-41 Skip if Cassette Data Ready"),
+                    new IOTDescription(0x14, "CBS-41 Skip if Cassette Data Bit = 1"),
+                    new IOTDescription(0x1c, "CBS-41 Write One Pulse"),
+
+                    new IOTDescription(0x64, "CBS-41 Start Cassette"),
+                    new IOTDescription(0x6c, "CBS-41 Stop Cassette"),
+                    new IOTDescription(0xcc, "CBS-42 Skip if Data Ready"),
+                    new IOTDescription(0xd4, "CBS-42 Skip if Data Bit = 1"),
+
+                    new IOTDescription(0xdc, "CBS-42 Write One Pulse"),
+                    new IOTDescription(0xe4, "CBS-42 Start Cassette"),
+                    new IOTDescription(0xec, "CBS-42 Stop Cassette"),
+                    new IOTDescription(0x04, "Tablet clear Status"),
+
+                    new IOTDescription(0x24, "Tablet Skip"),
+                    new IOTDescription(0x2c, "Tablet Read X Co-ordinate"),
+                    new IOTDescription(0x34, "Tablet Read Y Co-ordinate"),
+                    new IOTDescription(0x3c, "Tablet Read Z-Co-ordinate"),
+
+                    new IOTDescription(0x101, "Disc Drive Load Memory Address"),
+                    new IOTDescription(0x102, "Disc Drive Load Partial Read Control"),
+                    new IOTDescription(0x104, "Disk Drive Skip if Drive Ready"),
+                    new IOTDescription(0x109, "Disk Drive Seek Cylinder Dual Drive Only"),
+
+                    new IOTDescription(0x10a, "Disk Drive Control Command"),
+                    new IOTDescription(0x10c, "Disk Drive Skip if Attention Drive 0"),
+                    new IOTDescription(0x113, "Disk Drive Write Sector Command"),
+                    new IOTDescription(0x114, "Disk Drive Skip if Attention Drive 1"),
+
+                    new IOTDescription(0x11b, "Disk Drive Read Sector Command"),
+                    new IOTDescription(0x11c, "Disk Drive Skip if attention Drive 2"),
+                    new IOTDescription(0x121, "Disk Drive Read Status Command"),
+                    new IOTDescription(0x124, "Disk Drive Skip if Attention Drive 3"),
+
+                    new IOTDescription(0xc4, "Clear Display Halt Status Flag"),
+
+                    new IOTDescription(0x129, "Function Keyboard Load Word One"),
+                    new IOTDescription(0x121, "Function Keyboard Load Word Two"),
+                    new IOTDescription(0x131, "Function Keyboard Read Word One"),
+                    new IOTDescription(0x132, "Function Keyboard Read Word Two"),
+
+                    new IOTDescription(0x134, "Function Keyboard Skip if Data"),
+                    new IOTDescription(0xc3, "Read Mouse X and Y coordinates."),
+                    new IOTDescription(0xd9, "Read Mouse Switches and Keyset"),
+                    new IOTDescription(0x16c, "Skip on Graphic Device Input"),
+                    new IOTDescription(0xc9, "Read Joystick X Coordinate"),
+                    new IOTDescription(0xca, "Read Joystick Y Coordinate"),
+
+                    new IOTDescription(0x6a, "HDC-41 Half Duplex Turnaround Initialize"),
+                    new IOTDescription(0xa4, "HDC-41 Skip if Clear to Send"),
+                    new IOTDescription(0x44, "Start Print (hard copy)"),
+                    new IOTDescription(0x4c, "Skip if Hard Copy Busy"),
+
+                    new IOTDescription(0xa9, "Read KYB #2"),
+                    new IOTDescription(0xaa, "Clear KYB #2"),
+                    new IOTDescription(0xa9, "Read KYB #2"),
+                    new IOTDescription(0x59, "Read Light Pen Status to AC"),
+                    new IOTDescription(0x5a, "Clear Light Pen Status"),
+
+                    new IOTDescription(0x5c, "Skip if Light Pen Status = 1"),
+                    new IOTDescription(0x12a, "Clear Light Pen #2 Status"),
+                    new IOTDescription(0x12c, "Skip if Light Pen #2 Status = 1"),
+                    new IOTDescription(0x139, "Print and Clear Printer Flag"),
+
+                    new IOTDescription(0x13c, "Skip if Printer Ready"),
+                    new IOTDescription(0x141, "MTC-41 Load Memory Address"),
+                    new IOTDescription(0x142, "MTC-41 Load Record Size"),
+                    new IOTDescription(0x144, "MTC-41 Skip if Selected Transport Ready"),
+
+                    new IOTDescription(0x149, "MTC-41 Read DMA Memory Address"),
+                    new IOTDescription(0x14a, "MTC-41 Read Tape Status"),
+                    new IOTDescription(0x14c, "MTC-41 Skip if Tape System Ready"),
+                    new IOTDescription(0x153, "MTC-41 Transport Command"),
+
+                    new IOTDescription(0x154, "MTC-41 Skip if Tape Data Ready"),
+                    new IOTDescription(0x15b, "MTC-41 Control Command"),
+                    new IOTDescription(0x15c, "MTC-41 Skip if No Check Flag"),
+
+                    new IOTDescription(0x49, "Set Memory Protect Per AC Bit One"),
+                    new IOTDescription(0x4a, "Clear Memory Protect Status"),
+
+                    new IOTDescription(0x79, "XYR-1 Load X Display AC Buffer"),
+                    new IOTDescription(0x7a, "XYR-1 Load Y Display AC Buffer"),
+                    new IOTDescription(0x7c, "Load Plotter Register"),
+                    new IOTDescription(0x51, "Load Clock from AC"),
+
+                    new IOTDescription(0x52, "Clear Clock Status"),
+                    new IOTDescription(0x54, "Skip if Clock Status = 1"),
+                    new IOTDescription(0x69, "Read Clock Into AC"),
+                    new IOTDescription(0x81, "Clear TTY-2 Break"),
+
+                    new IOTDescription(0x82, "Set TTY-2 Break"),
+                    new IOTDescription(0x84, "Skip if TTY-2 Input Status Set"),
+                    new IOTDescription(0x8c, "Skip if TTY-2 Input Status Clear"),
+                    new IOTDescription(0x94, "Skip if TTY-2 Output Status Set"),
+
+                    new IOTDescription(0x9c, "Skip if TTY-2 Output Status Clear"),
+                    new IOTDescription(0x3a, "IOT Sync (External Diagnostic Scope Trigger)"),
+                    new IOTDescription(0x74, "Load Send/Receive Format"),
+                    new IOTDescription(0xb1, "Load Send Speed"),
+                    new IOTDescription(0xb1, "Load Receive Speed"),
+                };
+                
+            
 
             private Opcode _opcode;
             private ushort _data;
