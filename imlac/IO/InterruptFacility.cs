@@ -82,7 +82,8 @@ namespace imlac.IO
                     // PDS-1:
 
                     // bit 14: 40 cycle sync
-                    if (_system.DisplayProcessor.FrameLatch)
+                    if (_system.DisplayProcessor.FrameLatch && 
+                        _system.DisplayProcessor.DisplayHalted)
                     {
                         _interruptStatus |= 0x0002;
                     }
@@ -116,7 +117,7 @@ namespace imlac.IO
                     // PDS-4:
 
                     // Bit 15: Display halt
-                    if (_system.DisplayProcessor.IsHalted)
+                    if (_system.DisplayProcessor.DisplayHalted)
                     {
                         _interruptStatus |= 0x0001;
                     }

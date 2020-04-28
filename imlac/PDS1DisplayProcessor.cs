@@ -127,7 +127,6 @@ namespace imlac
                     break;
 
                 case 0xc4:      // clear halt state
-                    // TODO: what does this actually do?
                     _halted = false;
                     break;
 

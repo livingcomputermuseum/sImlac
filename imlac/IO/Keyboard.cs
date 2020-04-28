@@ -120,18 +120,17 @@ namespace imlac.IO
             // If we do not already have a key latched and one has been pressed,
             // we will latch it now.
             // Based on the keycode & modifiers we will generate an Imlac keyboard code
-            if (_system.Display.IsKeyPressed)
+            if (!_keyReady)
             {
-                _keyCode = GetScancodeForCurrentKey();
-                if (_keyCode != 0)
+                if (_system.Display.IsKeyPressed)
                 {
-                    Trace.Log(LogType.Keyboard, "Key latched {0}", Helpers.ToOctal(_keyCode));
-                    _keyReady = true;
+                    _keyCode = GetScancodeForCurrentKey();
+                    if (_keyCode != 0)
+                    {
+                        Trace.Log(LogType.Keyboard, "Key latched {0}", Helpers.ToOctal(_keyCode));
+                        _keyReady = true;
+                    }
                 }
-            }
-            else
-            {
-                _keyCode = 0;
             }
         }
 

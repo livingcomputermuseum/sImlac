@@ -55,7 +55,7 @@ namespace imlac
         public virtual void Reset()
         {
             _state = ProcessorState.Halted;
-            _halted = false;
+            _halted = true;
             _mode = DisplayProcessorMode.Processor;
             _immediateHalf = ImmediateHalf.First;
             _immediateWord = 0;
@@ -111,7 +111,7 @@ namespace imlac
             }
         }
 
-        public bool IsHalted
+        public bool DisplayHalted
         {
             get { return _halted; }
         }
@@ -144,8 +144,6 @@ namespace imlac
         public bool FrameLatch
         {
             get { return _frameLatch; }
-
-            set { _frameLatch = value; }
         }
 
         public int X

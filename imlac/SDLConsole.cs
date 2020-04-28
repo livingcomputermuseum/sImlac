@@ -112,6 +112,7 @@ namespace imlac
         {
             _keyLatchedLock.EnterReadLock();
             _keyLatched = false;
+            _latchedKeyCode = ImlacKey.Invalid;
             _keyLatchedLock.ExitReadLock();
         }
 
@@ -398,7 +399,7 @@ namespace imlac
                             return;
 
                         case SDL.SDL_EventType.SDL_KEYDOWN:
-                            SdlKeyDown(e.key.keysym.sym);
+                            SdlKeyDown(e.key.keysym.sym, e.key.repeat > 0);
                             break;
 
                         case SDL.SDL_EventType.SDL_KEYUP:
@@ -423,7 +424,7 @@ namespace imlac
             SDL.SDL_Quit();
         }
 
-        private void SdlKeyDown(SDL_Keycode key)
+        private void SdlKeyDown(SDL_Keycode key, bool repeat)
         {            
             switch(key)
             {
@@ -446,16 +447,25 @@ namespace imlac
 
                     UpdateDataSwitches(key, true /* key down */);
 
-                    if (key == SDL_Keycode.SDLK_INSERT)
+                    if (key == SDL_Keycode.SDLK_INSERT && !repeat)
                     {
                         FullScreenToggle();
                     }
 
+                    // If this is a repeated keystroke, we'll only log it if
+                    // the Repeat key (Alt) is being held down.
+                    if (repeat && (_keyModifiers & ImlacKeyModifiers.Rept) == 0)
+                    {
+                        break;
+                    }
+
                     _keyLatchedLock.EnterWriteLock();
 
-                    _keyLatched = true;
-                    _latchedKeyCode = TranslateKeyCode(key);
-
+                    if (!_keyLatched)
+                    {
+                        _keyLatched = true;
+                        _latchedKeyCode = TranslateKeyCode(key);
+                    }
                     _keyLatchedLock.ExitWriteLock();
                     break;
             }            
@@ -481,11 +491,15 @@ namespace imlac
                     break;
 
                 default:
-
-                    UpdateDataSwitches(key, false /* key down */);
+                    UpdateDataSwitches(key, false /* key up */);
 
                     _keyLatchedLock.EnterWriteLock();
-                    _latchedKeyCode = ImlacKey.Invalid;
+
+                    if (!_keyLatched)
+                    {
+                        _latchedKeyCode = ImlacKey.Invalid;
+                    }
+                    
                     _keyLatchedLock.ExitWriteLock();
                     break;
             }
