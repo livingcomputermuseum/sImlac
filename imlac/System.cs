@@ -134,8 +134,12 @@ namespace imlac
             _keyboard.Clock();
             _clock.Clock();
 
-            // interrupts last so that devices that raise interrupts get clocked first
-            _interruptFacility.Clock();
+            // interrupts last so that devices that raise interrupts get clocked first.
+            // We clock interrupts on the leading edge of the processor's Fetch state.
+            if (_processor.InstructionState == ExecState.Fetch)
+            {
+                _interruptFacility.Clock();
+            }
         }
 
         //
@@ -199,11 +203,20 @@ namespace imlac
             return SystemExecutionState.UntilDisplayStart;
         }
 
-        [DebuggerFunction("set bootstrap", "Loads the specified bootstrap into memory at 40", "<bootstrap>")]
-        private SystemExecutionState SetBootstrap(string bootstrap)
+        [DebuggerFunction("load bootstrap", "Loads the specified bootstrap into memory at 40", "<bootstrap>")]
+        private SystemExecutionState LoadBootstrap(string bootstrap)
         {
             LoadMemory(Paths.BuildBootPath(bootstrap), 0x20, 0x20);
             return SystemExecutionState.Debugging;
+        }
+
+        [DebuggerFunction("boot", "Loads the specified bootstrap into memory at 40 and executes it", "<bootstrap>")]
+        private SystemExecutionState Boot(string bootstrap)
+        {
+            LoadMemory(Paths.BuildBootPath(bootstrap), 0x20, 0x20);
+            Processor.PC = 0x20;
+            Processor.State = ProcessorState.Running;
+            return SystemExecutionState.Running;
         }
 
         [DebuggerFunction("save memory", "Saves the specified range of memory to a file", "<file> <start> <length>")]

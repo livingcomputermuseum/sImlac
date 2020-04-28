@@ -69,7 +69,7 @@ namespace imlac.IO
 
         public void Clock()
         {
-            if (_interruptsEnabled)
+            if (_interruptsEnabled && _interruptEnableCount == 0)
             {
                 // Collect up devices that want to interrupt us.
                 _interruptStatus = 0;
@@ -172,6 +172,10 @@ namespace imlac.IO
                     Trace.Log(LogType.Interrupt, "Interrupt triggered (for device(s) {0})", Helpers.ToOctal((ushort)(_interruptMask & _interruptStatus)));
                 }
             }
+            else if (_interruptsEnabled)
+            {
+                _interruptEnableCount--;
+            }
         }
 
         public int[] GetHandledIOTs()
@@ -195,6 +199,8 @@ namespace imlac.IO
 
                 case 0x72:
                     _interruptsEnabled = true;
+                    // Interrupts are enabled the second instruction after the ION.
+                    _interruptEnableCount = 1;
                     Trace.Log(LogType.Interrupt, "Interrupts enabled");
                     break;
 
@@ -220,6 +226,7 @@ namespace imlac.IO
             }
         }
 
+        private int _interruptEnableCount;
         private bool _interruptsEnabled;
         private bool _interruptPending;
         private int _interruptMask;

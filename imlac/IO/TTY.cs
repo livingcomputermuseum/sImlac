@@ -76,15 +76,15 @@ namespace imlac.IO
                     _rxData = _dataChannel.Read();
                     Trace.Log(LogType.TTY, "i");
                 }
-            }
 
-            // Are we waiting to send something?
-            if (_dataBufferFull && _dataChannel.OutputReady)
-            {
-                _dataChannel.Write(_txData);
-                Trace.Log(LogType.TTY, "o {0}", Helpers.ToOctal(_txData));
-                _dataBufferFull = false;
-                _dataSentLatch = true;
+                // Are we waiting to send something?
+                if (_dataBufferFull && _dataChannel.OutputReady)
+                {
+                    _dataChannel.Write(_txData);
+                    Trace.Log(LogType.TTY, "o {0}", Helpers.ToOctal(_txData));
+                    _dataBufferFull = false;
+                    _dataSentLatch = true;
+                }
             }
         }
 
