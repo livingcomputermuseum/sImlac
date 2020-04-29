@@ -24,6 +24,7 @@ using System.Threading;
 using imlac.IO;
 using SDL2;
 using static SDL2.SDL;
+using System.Runtime.InteropServices;
 
 namespace imlac
 {
@@ -39,6 +40,9 @@ namespace imlac
     //
     public class SDLConsole : IImlacConsole
     {
+        [DllImport("user32.dll", SetLastError = true)]
+        static extern bool SetProcessDPIAware();
+
         public SDLConsole(float scaleFactor)
         {
             if (scaleFactor <= 0)
@@ -225,6 +229,8 @@ namespace imlac
 
         private void InitializeSDL()
         {
+            SetProcessDPIAware();
+
             DoUpdateDisplayScale();
 
             int retVal = 0;
@@ -241,13 +247,15 @@ namespace imlac
                 throw new InvalidOperationException("SDL_SetHint failed to set scale quality.");
             }
 
+            SDL.SDL_WindowFlags flags = SDL.SDL_WindowFlags.SDL_WINDOW_ALLOW_HIGHDPI | SDL.SDL_WindowFlags.SDL_WINDOW_SHOWN;
+
             _sdlWindow = SDL.SDL_CreateWindow(
                 "Imlac PDS-1",
                 SDL.SDL_WINDOWPOS_UNDEFINED,
                 SDL.SDL_WINDOWPOS_UNDEFINED,
                 _xResolution,
                 _yResolution,
-                _fullScreen ? SDL.SDL_WindowFlags.SDL_WINDOW_FULLSCREEN_DESKTOP | SDL.SDL_WindowFlags.SDL_WINDOW_SHOWN : SDL.SDL_WindowFlags.SDL_WINDOW_SHOWN);
+                _fullScreen ? SDL.SDL_WindowFlags.SDL_WINDOW_FULLSCREEN_DESKTOP | flags : flags);
 
 
             if (_sdlWindow == IntPtr.Zero)
@@ -450,6 +458,7 @@ namespace imlac
                     if (key == SDL_Keycode.SDLK_INSERT && !repeat)
                     {
                         FullScreenToggle();
+                        break;
                     }
 
                     // If this is a repeated keystroke, we'll only log it if
@@ -463,8 +472,14 @@ namespace imlac
 
                     if (!_keyLatched)
                     {
-                        _keyLatched = true;
-                        _latchedKeyCode = TranslateKeyCode(key);
+                        ImlacKey newCode = TranslateKeyCode(key);
+
+                        // Only latch valid keys.
+                        if (newCode != ImlacKey.Invalid)
+                        {
+                            _keyLatched = true;
+                            _latchedKeyCode = newCode;
+                        }
                     }
                     _keyLatchedLock.ExitWriteLock();
                     break;
