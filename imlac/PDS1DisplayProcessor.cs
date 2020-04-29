@@ -556,6 +556,8 @@ namespace imlac
         private bool _sgrDJRMOn; 
         private bool _sgrBeamOn;
 
+        protected const int _frameClocks40Hz = 13889;     // cycles per 1/40th of a second (rounded up) for a 1.8uS clock speed.
+
         private PDS1DisplayInstruction[] _instructionCache;
 
         private readonly int[] _handledIOTs = { 0x3, 0xa, 0x39, 0xc4 };

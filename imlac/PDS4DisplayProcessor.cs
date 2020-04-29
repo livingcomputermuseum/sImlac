@@ -704,6 +704,8 @@ namespace imlac
         private const int MSBIncrement = 0x10;
         private const int MSBMask = 0xfff0;
 
+        protected const int _frameClocks40Hz = 25253;     // cycles per 1/40th of a second (rounded up) for 990ns Clock.
+
         private PDS4DisplayInstruction[] _instructionCache;
 
         private readonly int[] _handledIOTs = { 0x1, 0x2, 0x3, 0xa, 0x39, 0xc4 };

@@ -229,7 +229,15 @@ namespace imlac
 
         private void InitializeSDL()
         {
-            SetProcessDPIAware();
+            try
+            {
+                // Set high DPI awareness on Windows platforms, if this fails it's OK.
+                SetProcessDPIAware();
+            }
+            catch
+            {
+                // Nothing to do.
+            }
 
             DoUpdateDisplayScale();
 

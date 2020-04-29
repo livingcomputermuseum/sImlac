@@ -232,14 +232,13 @@ namespace imlac
         protected ushort _immediateWord;
         protected ImmediateHalf _immediateHalf;
 
-        protected int _clocks;
-        protected const int _frameClocks40Hz = 13889;     // cycles per 1/40th of a second (rounded up)
+        protected int _clocks;        
         protected bool _frameLatch;
 
         protected ProcessorState _state;
-        protected bool _halted;                           // The Halted flag is independent of the current state.
-                                                          // (i.e. it is set when the processor gets halted, but can later be cleared
-                                                          //  whiile the display remains halted.)           
+        protected bool _halted;                           // The halted flag is set to indicate that the processor
+                                                          // has previously halted itself and is independent of the 
+                                                          // current state of the processor.
         protected DisplayProcessorMode _mode;
         protected ImlacSystem _system;
         protected Memory _mem;

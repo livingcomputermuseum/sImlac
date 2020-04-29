@@ -1,19 +1,20 @@
-﻿sImlac v0.2 README - (c) 2016-2018 Living Computers: Museum+Labs
+﻿sImlac v0.3 README - (c) 2016-2020 Living Computers: Museum+Labs
 -----------------------------------------------------------------
 
 1. Overview
 -----------
-sImlac is an attempt to emulate/simulate the oft neglected Imlac PDS-1 
-computer/terminal.  The Imlac combined a 16-bit CPU (very PDP-8 like) with
-a simple (but fairly flexible) Display Processor which drove a vector
+sImlac is an attempt to emulate/simulate the oft neglected Imlac PDS-1 and
+PDS-4 computers/terminals.  The Imlac combined a 16-bit CPU (very PDP-8 like) 
+with a simple (but fairly flexible) Display Processor which drove a vector
 display.
 
 sImlac currently emulates the current hardware:
 
-    - Standard Imlac Processor / Display Processor (with 1.8us cycle timings)
-    - 8KW of core memory
+    - Standard Imlac PDS-1D Processor / Display Processor (with 1.8us cycle timings)
+    - Standard Imlac PDS-4 Processor / Display Processor (with 990ns cycle timings)
+    - up to 16KW of core memory
     - Vector display (with long-persistence phosphor)
-    - PTR and TTY interfaces (using physical serial ports or files as inputs)
+    - PTR and TTY interfaces (using physical serial ports, telnet hosts, or files as inputs)
     - Keyboard
     - Interrupt facility
     - Long Vector (LVH-1 option) instruction support
@@ -23,7 +24,8 @@ This is enough to have fun with the small amount of archived software that's out
 there.  Support for additional hardware is planned, but is mostly dependent on
 finding software that requires it.
 
-Since this is v0.2, there are still likely to be bugs.
+Since this is v0.3, there are still likely to be bugs.  In particular, the PDS-4 support
+introduced in this release is not well tested due to lack of applicable software.
 
 Questions, comments, or bug reports can be directed at 
 joshd@livingcomputers.org.
@@ -36,7 +38,7 @@ Windows Vista or later, with version 4.5.3 or later of the .NET Framework instal
 .NET should be present by default on Windows Vista and later; if it is not installed 
 on your computer it can be obtained at https://www.microsoft.com/net.
 
-As ContrAlto is a .NET application it will also run under Mono 
+As sImlac is a .NET application it will also run under Mono 
 (http://www.mono-project.com/) on Unix and OS X.
 
 sImlac uses SDL 2.0 for display and input.  On Windows the appropriate SDL.dll is 
@@ -57,20 +59,18 @@ sImlac comes with three boot loaders, and the correct one must be chosen for
 the image you are loading (see software.txt for a listing that describes the
 available software and the loader to use).
 
-A loader can be loaded using the "set bootstrap" command.  Let's say we want 
+A loader can be loaded and run using the "boot" command.  Let's say we want 
 to play a game of "Space War!."  The image named "war" uses the STTY (special
-TTY) loader, so we issue the following command:
+TTY) loader, so we issue the following commands:
 
-> set bootstrap stty
-
-Now we need to attach the image to the TTY port, this is done by:
+We need to attach the image to the TTY port, this is done by:
 
 > attach tty file <path-to-images>\war
 
-Once this is done, we can start the CPU running.  By default, the PC is set
-to 40(8), the start of the boot loader, so we can just do:
+Once this is done, we can start the CPU running the bootstrap, which will
+load the "war" program into memory and start it running:
 
-> go
+> boot stty
 
 And the loader will run.  This will take a few seconds to complete, after which
 the title screen for "Space War!" will appear in the display window.
@@ -135,8 +135,11 @@ the "Insert" key will toggle between window and fullscreen modes.
 ------------
 
 reset               :  Resets the Imlac, but does not clear its memory.
+                       Any files attached to the paper tape reader or TTY 
+                       interface are reset to the beginning of the file.
 
-set bootstrap <boot>:  Loads the specified bootstrap into memory at 40(8).
+boot <boot>         :  Loads the specified bootstrap into memory at 40(8) and
+                       executes it.
                        Options are PTR (paper tape), TTY (standard TTY), and
                        STTY (alternate TTY).
 
@@ -149,9 +152,17 @@ attach tty file [file] : Specifies a TTY or STTY-format file to attach to the TT
                        bootstraps.
 
 attach tty port [port] [rate] [parity] [data bits] [stop bits] :
-                      Specifies a physical port on the host machine to connect
-                      to the emulated TTY port.  Allows the emulated Imlac to
-                      talk to real serial devices.
+                       Specifies a physical port on the host machine to connect
+                       to the emulated TTY port.  Allows the emulated Imlac to
+                       talk to real serial devices.
+
+attach tty telnet [host] [port] :
+                       Specifies a telnet host to connect to the emulated TTY 
+                       port.  Allows the emulated Imlac to talk to another 
+                       computer over the Internet.
+
+attach tty raw [host] [port] :
+                       As above, but using a raw connection rather than Telnet.
 
 go <addr>           :  Starts the system running at the current PC, or <addr> if 
                        specified.
@@ -164,6 +175,16 @@ step frame end      :  Runs the current 40hz frame to its completion.  If the
                        complete.  (Hit Ctrl-C to return to the debugger.)
 
 step frame start    :  Runs until the start of the next frame.
+
+set cpu type [type] :  Sets the type of Imlac system sImlac will emulate.
+                       Valid options are "PDS1" and "PDS4".  Switching the cpu
+                       type in the middle of a running program will produce
+                       interesting results.
+
+enable mit mode     :  Turns on MIT's DADR addressing modifications.  This is
+                       necessary to run some Imlac software from MIT.
+
+disable mit mode    :  The opposite of the above.
 
 edit memory [addr]  :  Begins a very simple memory editor starting at address 
                        'addr'.  You will be shown the current address\contents,
@@ -330,6 +351,13 @@ Thanks go out to:
 
 7. Revision History
 -------------------
+
+v0.3 - Added PDS-4 support.
+     - Many bugfixes to PDS-1 emulation
+     - Added telnet/raw ports
+     - Added high-dpi awareness
+     - Enabled MIT display addressing modifications
+     - Fixed 40 cycle / display halt interrupt
 
 v0.2 - Updated to use SDL-CS for better cross-platform support.
 
