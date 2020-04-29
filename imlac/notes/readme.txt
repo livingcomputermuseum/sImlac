@@ -12,7 +12,7 @@ sImlac currently emulates the current hardware:
 
     - Standard Imlac PDS-1D Processor / Display Processor (with 1.8us cycle timings)
     - Standard Imlac PDS-4 Processor / Display Processor (with 990ns cycle timings)
-    - up to 16KW of core memory
+    - Up to 16KW of core memory
     - Vector display (with long-persistence phosphor)
     - PTR and TTY interfaces (using physical serial ports, telnet hosts, or files as inputs)
     - Keyboard

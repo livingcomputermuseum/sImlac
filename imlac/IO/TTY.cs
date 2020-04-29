@@ -84,6 +84,7 @@ namespace imlac.IO
                     Trace.Log(LogType.TTY, "o {0}", Helpers.ToOctal(_txData));
                     _dataBufferFull = false;
                     _dataSentLatch = true;
+                    _dataSendReady = true;
                 }
             }
         }
@@ -142,14 +143,14 @@ namespace imlac.IO
                     break;
 
                 case 0x22:  // TCF - clear output flag
-                    _dataSendReady = true;
+                    _dataSendReady = false;
                     break;
 
                 case 0x23:  // TPC - print, clear flag
                     if (_dataSendReady)
                     {
                         _txData = (byte)_system.Processor.AC;
-                        _dataSendReady = true;
+                        _dataSendReady = false;
                         _dataBufferFull = true;
                     }
                     break;
