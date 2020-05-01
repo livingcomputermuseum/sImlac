@@ -491,7 +491,11 @@ namespace imlac
                         }
                     }
 
-                    _keyPressedCount++;
+                    if (!repeat)
+                    {
+                        // Only count new keystrokes.
+                        _keyPressedCount++;
+                    }                    
                     _keyLatchedLock.ExitWriteLock();
                     break;
             }            
@@ -527,7 +531,7 @@ namespace imlac
                     // can set the keycode to None to indicate no keys being down.
                     // (This avoids issues with n-key rollover.)
                     //
-                    _keyPressedCount--;
+                    _keyPressedCount--;                    
                     if (_keyPressedCount == 0)
                     {
                         _currentKeyCode = ImlacKey.None;
@@ -647,6 +651,11 @@ namespace imlac
 
         private class Vector
         {
+            static Vector()
+            {
+                _rng = new Random();
+            }
+
             public Vector(DrawingMode mode, float intensity, bool blink, uint startX, uint startY, uint endX, uint endY)
             {
                 _mode = mode;
@@ -668,17 +677,13 @@ namespace imlac
                     _mode = mode;
                 }
 
-                if (blink)
-                {
-                    Console.WriteLine("blink {0},{1}-{2},{3}", startX, startY, endX, endY);
-                }
-
+                
                 _intensity = intensity;
                 _blink = blink;
-                _x1 = (int)startX;
-                _y1 = (int)startY;
-                _x2 = (int)endX;
-                _y2 = (int)endY;
+                _x1 = (int)(startX + Perturbation());
+                _y1 = (int)(startY + Perturbation());
+                _x2 = (int)(endX + Perturbation());
+                _y2 = (int)(endY + Perturbation());
                 UpdateColor();
             }
 
@@ -696,6 +701,19 @@ namespace imlac
                          _color.A);
 
                     SDL.SDL_RenderDrawLine(sdlRenderer, _x1, _y1, _x2, _y2);                   
+                }
+            }
+
+            private int Perturbation()
+            {
+                if (Configuration.SquiggleMode)
+                {
+                    double factor = 2.5;
+                    return (int)(_rng.NextDouble() * factor - (factor / 2.0));
+                }
+                else
+                {
+                    return 0;
                 }
             }
 
@@ -743,6 +761,8 @@ namespace imlac
             private static Color PointColor = Color.FromArgb(255, Color.GreenYellow);
             private static Color SGRColor = Color.FromArgb(127, Color.DarkGreen);
             private static Color DebugColor = Color.FromArgb(255, Color.OrangeRed);
+
+            private static Random _rng;
         }
         
         private static void BuildKeyMappings()

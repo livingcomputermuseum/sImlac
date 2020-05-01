@@ -18,11 +18,13 @@ namespace imlac
         {
             MITMode = false;
             CPUType = ImlacCPUType.PDS1;
+            SquiggleMode = false;
         }
         //
         // Static System configuration parameters
         //
         public static bool          MITMode;
         public static ImlacCPUType  CPUType;
+        public static bool          SquiggleMode;
     }
 }

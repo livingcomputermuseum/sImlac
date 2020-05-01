@@ -514,10 +514,24 @@ namespace imlac
             return SystemExecutionState.Debugging;
         }
 
-        [DebuggerFunction("disable mit mode", "Turns MIT modifications on.")]
+        [DebuggerFunction("disable mit mode", "Turns MIT modifications off.")]
         private SystemExecutionState DisableMITMode()
         {
             Configuration.MITMode = false;
+            return SystemExecutionState.Debugging;
+        }
+
+        [DebuggerFunction("enable squiggle mode", "Turns vector perturbations on.")]
+        private SystemExecutionState EnableSquiggleMode()
+        {
+            Configuration.SquiggleMode = true;
+            return SystemExecutionState.Debugging;
+        }
+
+        [DebuggerFunction("disable squiggle mode", "Turns vector perturbations off.")]
+        private SystemExecutionState DisableSquiggleMode()
+        {
+            Configuration.SquiggleMode = false;
             return SystemExecutionState.Debugging;
         }
 
