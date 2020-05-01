@@ -91,20 +91,20 @@ namespace imlac
             BuildKeyMappings();
         }        
         
-        public bool IsKeyPressed
+        public bool NewKeyPressed
         {
             get
             {
                 _keyLatchedLock.EnterReadLock();
-                bool latched = _keyLatched;
+                bool pressed = _newKeyPressed;
                 _keyLatchedLock.ExitReadLock();
-                return latched;
+                return pressed;
             }
         }
 
         public ImlacKey Key
         {
-            get { return _latchedKeyCode; }
+            get { return _currentKeyCode; }
         }        
 
         public ImlacKeyModifiers KeyModifiers
@@ -114,9 +114,8 @@ namespace imlac
 
         public void UnlatchKey()
         {
-            _keyLatchedLock.EnterReadLock();
-            _keyLatched = false;
-            _latchedKeyCode = ImlacKey.Invalid;
+            _keyLatchedLock.EnterReadLock();            
+            _newKeyPressed = false;
             _keyLatchedLock.ExitReadLock();
         }
 
@@ -478,17 +477,21 @@ namespace imlac
 
                     _keyLatchedLock.EnterWriteLock();
 
-                    if (!_keyLatched)
+                    // Only accept this key if we're not waiting
+                    // for the Imlac to read the last one.
+                    if (!_newKeyPressed)
                     {
                         ImlacKey newCode = TranslateKeyCode(key);
 
                         // Only latch valid keys.
                         if (newCode != ImlacKey.Invalid)
                         {
-                            _keyLatched = true;
-                            _latchedKeyCode = newCode;
+                            _newKeyPressed = true;                            
+                            _currentKeyCode = newCode;
                         }
                     }
+
+                    _keyPressedCount++;
                     _keyLatchedLock.ExitWriteLock();
                     break;
             }            
@@ -518,9 +521,16 @@ namespace imlac
 
                     _keyLatchedLock.EnterWriteLock();
 
-                    if (!_keyLatched)
+                    //
+                    // Decrement our pressed keycount, when this reaches zero
+                    // this means the last pressed key has been released and we
+                    // can set the keycode to None to indicate no keys being down.
+                    // (This avoids issues with n-key rollover.)
+                    //
+                    _keyPressedCount--;
+                    if (_keyPressedCount == 0)
                     {
-                        _latchedKeyCode = ImlacKey.Invalid;
+                        _currentKeyCode = ImlacKey.None;
                     }
                     
                     _keyLatchedLock.ExitWriteLock();
@@ -675,17 +685,17 @@ namespace imlac
             public void Draw(IntPtr sdlRenderer, bool blinkOn)
             {
                 // TODO: handle dotted lines, line thickness options
-                
+
                 if (!_blink || blinkOn)
                 {
                     SDL.SDL_SetRenderDrawColor(
-                        sdlRenderer,
-                        (byte)(_color.R * _intensity),
-                        (byte)(_color.G * _intensity),
-                        (byte)(_color.B * _intensity),
-                        _color.A);
+                         sdlRenderer,
+                         (byte)(_color.R * _intensity),
+                         (byte)(_color.G * _intensity),
+                         (byte)(_color.B * _intensity),
+                         _color.A);
 
-                    SDL.SDL_RenderDrawLine(sdlRenderer, _x1, _y1, _x2, _y2);
+                    SDL.SDL_RenderDrawLine(sdlRenderer, _x1, _y1, _x2, _y2);                   
                 }
             }
 
@@ -953,9 +963,10 @@ namespace imlac
 
         private static Dictionary<SDL_Keycode, ImlacKey> _sdlImlacKeymap;
         private static Dictionary<SDL_Keycode, VKeys> _sdlVKeymap;
-        private ImlacKey _latchedKeyCode;
+        private ImlacKey _currentKeyCode;
         private ImlacKeyModifiers _keyModifiers;
-        private bool _keyLatched;
+        private int _keyPressedCount;
+        private bool _newKeyPressed;
 
         private ReaderWriterLockSlim _keyLatchedLock;
 

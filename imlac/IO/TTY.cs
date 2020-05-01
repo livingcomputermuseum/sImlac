@@ -171,7 +171,7 @@ namespace imlac.IO
         private byte _txData;
 
         private int _clocks;
-        private readonly int _dataClocks = 500;
+        private readonly int _dataClocks = 90;      // Appx. 50kbps
 
         private ISerialDataChannel _dataChannel;
 

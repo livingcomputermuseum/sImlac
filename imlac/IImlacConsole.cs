@@ -144,7 +144,7 @@ namespace imlac
         /// <summary>
         /// Indicates whether a key is currently pressed.
         /// </summary>
-        bool IsKeyPressed
+        bool NewKeyPressed
         {
             get;
         }

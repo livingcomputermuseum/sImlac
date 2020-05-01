@@ -31,6 +31,7 @@ namespace imlac.IO
 
     public enum ImlacKey
     {
+        None = 0x0,
         DataXmit = 0x2,
         Down = 0x4,
         Right = 0x5,
@@ -118,25 +119,18 @@ namespace imlac.IO
         public void Clock()
         {
             // If we do not already have a key latched and one has been pressed,
-            // we will latch it now.
-            // Based on the keycode & modifiers we will generate an Imlac keyboard code
+            // we will raise the Ready flag now.
             if (!_keyReady)
             {
-                if (_system.Display.IsKeyPressed)
-                {
-                    _keyCode = GetScancodeForCurrentKey();
-                    if (_keyCode != 0)
-                    {
-                        Trace.Log(LogType.Keyboard, "Key latched {0}", Helpers.ToOctal(_keyCode));
-                        _keyReady = true;
-                    }
+                if (_system.Display.NewKeyPressed)
+                {                    
+                    _keyReady = true;
                 }
             }
         }
 
         public void Reset()
         {
-            _keyCode = 0;
             _keyReady = false;
         }
 
@@ -155,20 +149,18 @@ namespace imlac.IO
             switch (iotCode)
             {
                 case 0x11:
-                    _system.Processor.AC |= _keyCode;
+                    _system.Processor.AC |= GetScancodeForCurrentKey();
                     Trace.Log(LogType.Keyboard, "Key OR'd into AC {0}", Helpers.ToOctal(_system.Processor.AC));
                     break;
          
                 case 0x12:
-                    _keyCode = 0;
                     _keyReady = false;
                     _system.Display.UnlatchKey();
                     Trace.Log(LogType.Keyboard, "Keyboard flag reset.");
                     break;
 
                 case 0x13:
-                    _system.Processor.AC |= _keyCode;
-                    _keyCode = 0;
+                    _system.Processor.AC |= GetScancodeForCurrentKey();
                     _keyReady = false;
                     _system.Display.UnlatchKey();
                     Trace.Log(LogType.Keyboard, "Key OR'd into AC {0}, keyboard flag reset.", Helpers.ToOctal(_system.Processor.AC));
@@ -196,7 +188,7 @@ namespace imlac.IO
 
                 // bit 8 is always set
                 scanCode = (ushort)(scanCode | 0x80);
-
+                
                 //
                 // The Repeat, Control, and Shift keys correspond to bits 5, 6, and 7 of the
                 // scancode returned.
@@ -225,7 +217,6 @@ namespace imlac.IO
         private readonly int[] _handledIOTs = { 0x11, 0x12, 0x13 };
 
         private bool _keyReady;
-        private ushort _keyCode;
 
         private ImlacSystem _system;
 
@@ -247,6 +238,7 @@ namespace imlac.IO
         {
             _keyMappings = new Dictionary<ImlacKey, ImlacKeyMapping>();
 
+            AddMapping(ImlacKey.None, 0x0, 0x0);
             AddMapping(ImlacKey.DataXmit, 0x2, 0x0);
             AddMapping(ImlacKey.Down, 0x4, 0x0);
             AddMapping(ImlacKey.Right, 0x5, 0x0);
