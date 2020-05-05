@@ -667,28 +667,31 @@ namespace imlac
             }
 
             ushort endAddress = (ushort)Math.Min(Memory.Size, startAddress + length);
-
-            for (ushort address = startAddress; address < endAddress; address++)
+            ushort address = startAddress;
+            while (address < endAddress)
             {
                 string disassembly = string.Empty;
+
+                int size = 0;
                 try
                 {
                     switch (mode)
                     {
                         case DisassemblyMode.Processor:
+                            size = 1;
                             disassembly = Processor.Disassemble(address);
                             break;
 
                         case DisassemblyMode.DisplayAuto:
-                            disassembly = DisplayProcessor.Disassemble(address, DisplayProcessorMode.Indeterminate);
+                            disassembly = DisplayProcessor.Disassemble(address, DisplayProcessorMode.Indeterminate, out size);
                             break;
 
                         case DisassemblyMode.DisplayProcessor:
-                            disassembly = DisplayProcessor.Disassemble(address, DisplayProcessorMode.Processor);
+                            disassembly = DisplayProcessor.Disassemble(address, DisplayProcessorMode.Processor, out size);
                             break;
 
                         case DisassemblyMode.DisplayIncrement:
-                            disassembly = DisplayProcessor.Disassemble(address, DisplayProcessorMode.Increment);
+                            disassembly = DisplayProcessor.Disassemble(address, DisplayProcessorMode.Increment, out size);
                             break;
                     }
                 }
@@ -696,9 +699,12 @@ namespace imlac
                 {
                     // this can happen if the data is not a valid instruction
                     disassembly = "<invalid instruction>";
+                    size = 1;
                 }
 
                 Console.WriteLine("{0}\\{1} {2}", Helpers.ToOctal(address), Helpers.ToOctal(Memory.Fetch(address)), disassembly);
+
+                address += (ushort)size;
             }
         }
 

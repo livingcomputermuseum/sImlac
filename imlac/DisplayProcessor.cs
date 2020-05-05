@@ -210,7 +210,7 @@ namespace imlac
 
         public abstract void InvalidateCache(ushort address);
 
-        public abstract string Disassemble(ushort address, DisplayProcessorMode mode);
+        public abstract string Disassemble(ushort address, DisplayProcessorMode mode, out int length);
 
         public abstract void Clock();
 
@@ -291,10 +291,11 @@ namespace imlac
 
         protected abstract class DisplayInstructionBase
         {
-            public DisplayInstructionBase(ushort word, DisplayProcessorMode mode)
+            public DisplayInstructionBase(ushort word, ushort address, DisplayProcessorMode mode)
             {
                 _usageMode = mode;
                 _word = word;
+                _address = address;
                 Decode();
             }
 
@@ -324,17 +325,182 @@ namespace imlac
             /// </summary>
             /// <param name="mode"></param>
             /// <returns></returns>
-            public abstract string Disassemble(DisplayProcessorMode mode);
+            public abstract string Disassemble(DisplayProcessorMode mode, Memory mem, out int length);
 
             /// <summary>
             /// Implemented to provide decoding of this instruction word.
             /// </summary>
             protected abstract void Decode();
 
+            protected string DisassembleIncrement()
+            {
+                return DisassembleIncrementHalf(ImmediateHalf.First) + " | " + DisassembleIncrementHalf(ImmediateHalf.Second);
+            }
+
+            private string DisassembleIncrementHalf(ImmediateHalf half)
+            {
+                string ret = string.Empty;
+                int halfWord = half == ImmediateHalf.First ? (_word & 0xff00) >> 8 : (_word & 0xff);
+
+                // translate the half word to vector movements or escapes
+                // special case for "Enter Immediate mode" halfword (030) in first half.
+                if (half == ImmediateHalf.First && halfWord == 0x30)
+                {
+                    ret += "E";
+                }
+                else if ((halfWord & 0x80) == 0)
+                {
+                    if ((halfWord & 0x10) != 0)
+                    {
+                        ret += "IX ";
+                    }
+
+                    if ((halfWord & 0x08) != 0)
+                    {
+                        ret += "ZX ";
+                    }
+
+                    if (half == ImmediateHalf.Second &&
+                        (halfWord & 0x04) != 0)
+                    {
+                        ret += "E PPM ";
+                    }
+
+                    if ((halfWord & 0x02) != 0)
+                    {
+                        ret += "IY ";
+                    }
+
+                    if ((halfWord & 0x01) != 0)
+                    {
+                        ret += "ZY ";
+                    }
+
+                    if ((halfWord & 0x40) != 0)
+                    {
+                        if ((halfWord & 0x20) != 0)
+                        {
+                            // escape and return
+                            ret += "F RJM";
+                        }
+                        else
+                        {
+                            // Escape
+                            ret += "F";
+                        }
+                    }
+                }
+                else
+                {
+                    int xSign = ((halfWord & 0x20) == 0) ? 1 : -1;
+                    int xMag = (int)(((halfWord & 0x18) >> 3));
+
+                    int ySign = (int)(((halfWord & 0x04) == 0) ? 1 : -1);
+                    int yMag = (int)((halfWord & 0x03));
+
+                    ret += String.Format("{0},{1} {2}", xMag * xSign, yMag * ySign, (halfWord & 0x40) == 0 ? "OFF" : "ON");
+                }
+
+                return ret;
+            }
+
+            protected string DisassembleProcessor(Memory mem, out int length)
+            {
+                length = 1;
+
+                string ret = String.Empty;
+                if (_opcode == DisplayOpcode.DOPR)
+                {
+                    string[] codes = { "INV0 ", "INV1 ", "INV2 ", "INV3 ", "DDSP ", "DRJM ", "DDYM ", "DDXM ", "DIYM ", "DIXM ", "DHVC ", "DHLT " };
+
+                    for (int i = 4; i < 11; i++)
+                    {
+                        if ((_data & (0x01) << i) != 0)
+                        {
+                            if (!string.IsNullOrEmpty(ret))
+                            {
+                                ret += ",";
+                            }
+
+                            ret += codes[i];
+                        }
+                    }
+
+                    // display halt if bit 4 is unset
+                    if ((_data & 0x800) == 0)
+                    {
+                        ret += " DHLT ";
+                    }
+
+                    // F/C ops:
+                    int f = (_data & 0xc) >> 2;
+                    int c = _data & 0x3;
+
+                    switch (f)
+                    {
+                        case 0x0:
+                            // nothing
+                            if (c == 1)
+                            {
+                                ret += String.Format("DADR");
+                            }
+                            break;
+
+                        case 0x1:
+                            ret += String.Format("DSTS {0}", c);
+                            break;
+
+                        case 0x2:
+                            ret += String.Format("DSTB {0}", c);
+                            break;
+
+                        case 0x3:
+                            ret += String.Format("DLPN {0}", c);
+                            break;
+                    }
+                }
+                else
+                {
+                    switch (_opcode)
+                    {
+                        case DisplayOpcode.DEIM:
+                            ret = String.Format("DEIM | {0} {1}",
+                                DisassembleIncrementHalf(ImmediateHalf.Second),
+                                (_word & 0xff00) == 0x3800 ? "Enter PPM" : String.Empty);
+                            break;
+
+                        case DisplayOpcode.DLXA:
+                            ret = String.Format("DLXA {0} ({1})", Helpers.ToOctal(_data), _data);
+                            break;
+
+                        case DisplayOpcode.DLYA:
+                            ret = String.Format("DLXA {0} ({1})", Helpers.ToOctal(_data), _data);
+                            break;
+
+                        case DisplayOpcode.DJMS:
+                            ret = String.Format("DJMS {0}", Helpers.ToOctal(_data));
+                            break;
+
+                        case DisplayOpcode.DJMP:
+                            ret = String.Format("DJMP {0}", Helpers.ToOctal(_data));
+                            break;
+
+                        default:
+                            ret = DisassembleExtended(mem, out length);
+                            break;
+                    }
+                }
+
+                return ret;
+            }
+
+            protected abstract string DisassembleExtended(Memory mem, out int length);
+
             protected DisplayOpcode _opcode;
             protected ushort _data;
             protected DisplayProcessorMode _usageMode;
             protected ushort _word;
+            protected ushort _address;
         }
 
     }

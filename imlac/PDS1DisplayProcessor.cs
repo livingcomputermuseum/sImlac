@@ -53,7 +53,7 @@ namespace imlac
             _instructionCache[address & Memory.SizeMask] = null;
         }
 
-        public override string Disassemble(ushort address, DisplayProcessorMode mode)
+        public override string Disassemble(ushort address, DisplayProcessorMode mode, out int length)
         {
             //
             // Return a precached instruction if we have it due to previous execution
@@ -62,11 +62,11 @@ namespace imlac
             //
             if (_instructionCache[address & Memory.SizeMask] != null)
             {
-                return _instructionCache[address & Memory.SizeMask].Disassemble(mode);
+                return _instructionCache[address & Memory.SizeMask].Disassemble(mode, _mem, out length);
             }
             else
             {
-                return new PDS1DisplayInstruction((ushort)(address & Memory.SizeMask), mode).Disassemble(mode);
+                return new PDS1DisplayInstruction(_mem.Fetch(address), address, mode).Disassemble(mode, _mem, out length);
             }
         }
 
@@ -545,7 +545,7 @@ namespace imlac
         {
             if (_instructionCache[address & Memory.SizeMask] == null)
             {
-                _instructionCache[address & Memory.SizeMask] = new PDS1DisplayInstruction(_mem.Fetch(address), mode);
+                _instructionCache[address & Memory.SizeMask] = new PDS1DisplayInstruction(_mem.Fetch(address), address, mode);
             }
 
             return _instructionCache[address & Memory.SizeMask];
@@ -568,11 +568,11 @@ namespace imlac
         /// </summary>
         private class PDS1DisplayInstruction : DisplayInstructionBase
         {
-            public PDS1DisplayInstruction(ushort word, DisplayProcessorMode mode) : base (word, mode)
+            public PDS1DisplayInstruction(ushort word, ushort address, DisplayProcessorMode mode) : base (word, address, mode)
             {
             }
 
-            public override string Disassemble(DisplayProcessorMode mode)
+            public override string Disassemble(DisplayProcessorMode mode, Memory mem, out int length)
             {
                 if (mode == DisplayProcessorMode.Indeterminate)
                 {
@@ -582,12 +582,14 @@ namespace imlac
                 switch (mode)
                 {
                     case DisplayProcessorMode.Increment:
+                        length = 1;
                         return DisassembleIncrement();
 
                     case DisplayProcessorMode.Processor:
-                        return DisassembleProcessor();
+                        return DisassembleProcessor(mem, out length);
 
                     case DisplayProcessorMode.Indeterminate:
+                        length = 1;
                         return "Indeterminate";
 
                     default:
@@ -712,131 +714,74 @@ namespace imlac
                 
             }
 
-            private string DisassembleIncrement()
-            {
-                return DisassembleIncrementHalf(ImmediateHalf.First) + " | " + DisassembleIncrementHalf(ImmediateHalf.Second);
-            }
-
-            private string DisassembleIncrementHalf(ImmediateHalf half)
-            {
-                string ret = string.Empty;
-                int halfWord = half == ImmediateHalf.First ? (_word & 0xff00) >> 8 : (_word & 0xff);
-
-                // translate the half word to vector movements or escapes
-                // special case for "Enter Immediate mode" halfword (030) in first half.
-                if (half == ImmediateHalf.First && halfWord == 0x30)
-                {
-                    ret += "E";
-                }
-                else if ((halfWord & 0x80) == 0)
-                {
-                    if ((halfWord & 0x10) != 0)
-                    {
-                        ret += "IX ";
-                    }
-
-                    if ((halfWord & 0x08) != 0)
-                    {
-                        ret += "ZX ";
-                    }
-
-                    if ((halfWord & 0x02) != 0)
-                    {
-                        ret += "IY ";
-                    }
-
-                    if ((halfWord & 0x01) != 0)
-                    {
-                        ret += "ZY ";
-                    }
-
-                    if ((halfWord & 0x40) != 0)
-                    {
-                        if ((halfWord & 0x20) != 0)
-                        {
-                            // escape and return
-                            ret += "F RJM";
-                        }
-                        else
-                        {
-                            // Escape
-                            ret += "F";
-                        }
-                    }
-                }
-                else
-                {
-                    int xSign = ((halfWord & 0x20) == 0) ? 1 : -1;
-                    int xMag = (int)(((halfWord & 0x18) >> 3));
-
-                    int ySign = (int)(((halfWord & 0x04) == 0) ? 1 : -1);
-                    int yMag = (int)((halfWord & 0x03));
-
-                    ret += String.Format("{0},{1} {2}", xMag * xSign, yMag * ySign, (halfWord & 0x40) == 0 ? "OFF" : "ON");
-                }
-
-                return ret;
-            }
-
             private void DecodeImmediate()
             {
                 // TODO: eventually actually precache movement calculations.
             }
 
-            private string DisassembleProcessor()
+            protected override string DisassembleExtended(Memory mem, out int length)
             {
                 string ret = String.Empty;
-                if (_opcode == DisplayOpcode.DOPR)
-                {                    
-                    string[] codes = { "INV0 ", "INV1 ", "INV2 ", "INV3 ", "DDSP ", "DRJM ", "DDYM ", "DDXM ", "DIYM ", "DIXM ", "DHVC ", "DHLT " };
-
-                    for (int i = 4; i < 12; i++)
-                    {
-                        if ((_data & (0x01) << i) != 0)
-                        {
-                            if (!string.IsNullOrEmpty(ret))
-                            {
-                                ret += ",";
-                            }
-
-                            ret += codes[i];
-                        }
-                    }
-
-                    // F/C ops:
-                    int f = (_data & 0xc) >> 2;
-                    int c = _data & 0x3;
-
-                    switch (f)
-                    {
-                        case 0x0:
-                            // nothing
-                            if (c == 1)
-                            {
-                                ret += String.Format("DADR");
-                            }
-                            break;
-
-                        case 0x1:
-                            ret += String.Format("DSTS {0}", c);
-                            break;
-
-                        case 0x2:
-                            ret += String.Format("DSTB {0}", c);
-                            break;
-
-                        case 0x3:
-                            ret += String.Format("DLPN {0}", c);
-                            break;
-                    }
-                }
-                else
+                switch (_opcode)
                 {
-                    // keep things simple -- should add special support for extended instructions at some point...
-                    ret = String.Format("{0} {1} ", _opcode, Helpers.ToOctal(_data));
+                    case DisplayOpcode.DLVH:
+                        length = 3;
+                        ret = DecodeLongVector(mem);
+                        break;
+
+                    default:
+                        length = 1;
+                        // Handle as yet not-special-cased opcodes
+                        ret = String.Format("{0} {1}", _opcode, Helpers.ToOctal(_data));
+                        break;
                 }
 
                 return ret;
+            }
+
+            private string DecodeLongVector(Memory mem)
+            {
+                //
+                // A Long Vector instruction is 3 words long:
+                // Word 0: upper 4 bits indicate the opcode (4), lower 12 specify N-M
+                // Word 1: upper 3 bits specify beam options (dotted, solid, etc) and the lower 12 specify the larger increment "M"
+                // Word 2: upper 3 bits specify signs, lower 12 specify the smaller increment "N"
+                // M is the larger absolute value between dX and dY
+                // N is the smaller.
+                //
+                // TODO: Would make sense to precache this during decoding, would require
+                // modifications to cache invalidation logic.
+                ushort word1 = mem.Fetch((ushort)(_address + 1));
+                ushort word2 = mem.Fetch((ushort)(_address + 2));
+
+                uint M = (uint)(word1 & 0x3ff);
+                uint N = (uint)(word2 & 0x3ff);
+
+                bool beamOn = (word1 & 0x2000) != 0;
+                bool dotted = (word1 & 0x4000) != 0;
+
+                int dySign = (word2 & 0x2000) != 0 ? -1 : 1;
+                int dxSign = (word2 & 0x4000) != 0 ? -1 : 1;
+                bool dyGreater = (word2 & 0x1000) != 0;
+
+                uint dx = 0;
+                uint dy = 0;
+
+                if (dyGreater)
+                {
+                    dy = M;
+                    dx = N;
+                }
+                else
+                {
+                    dx = M;
+                    dy = N;
+                }
+
+                return String.Format("DLVH ({0},{1}) {2} {3}",
+                    dx * dxSign, dy * dySign,
+                    beamOn ? "ON" : "OFF",
+                    dotted ? "DOTTED" : String.Empty);
             }
         }
     }
