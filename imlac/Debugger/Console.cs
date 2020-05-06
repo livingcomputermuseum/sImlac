@@ -63,7 +63,7 @@ namespace imlac.Debugger
             }
         }
 
-        public void AddSubNode(List<string> words, MethodInfo method, object instance)
+        public void AddSubNode(List<string> words, DebuggerCommand command)
         {
             // We should never hit this case.
             if (words.Count == 0)
@@ -77,13 +77,13 @@ namespace imlac.Debugger
             if (subNode == null)
             {
                 // No, it has not -- create one and add it now.
-                subNode = new DebuggerCommand(instance, words[0], null, null, null);
+                subNode = new DebuggerCommand(command.Instance, words[0], command.Description, command.Usage, null);
                 this.SubCommands.Add(subNode);
 
                 if (words.Count == 1)
                 {
                     // This is the last stop -- set the method and be done with it now.
-                    subNode.Methods.Add(method);
+                    subNode.Methods.Add(command.Methods[0]);
 
                     // early return.
                     return;
@@ -98,7 +98,7 @@ namespace imlac.Debugger
                     // If we're on the last word at this point then this is an overloaded command.
                     // Check that we don't have any other commands with this number of arguments.
                     //
-                    int argCount = method.GetParameters().Length;
+                    int argCount = command.Methods[0].GetParameters().Length;
                     foreach (MethodInfo info in subNode.Methods)
                     {
                         if (info.GetParameters().Length == argCount)
@@ -110,7 +110,7 @@ namespace imlac.Debugger
                     //
                     // We're ok.  Add it to the method list.
                     //
-                    subNode.Methods.Add(method);
+                    subNode.Methods.Add(command.Methods[0]);
 
                     // and return early.
                     return;
@@ -119,7 +119,7 @@ namespace imlac.Debugger
 
             // We have more words to go.
             words.RemoveAt(0);
-            subNode.AddSubNode(words, method, instance);
+            subNode.AddSubNode(words, command);
         }
 
         public DebuggerCommand FindSubNodeByName(string name)
@@ -656,9 +656,9 @@ namespace imlac.Debugger
             {
                 string[] commandWords = c.Name.Split(' ');
 
-                // This is kind of ugly, we know that at this point every command built above have only
+                // This is kind of ugly, we know that at this point every command built above has only
                 // one method.  When building the tree, overloaded commands may end up with more than one.
-                _commandRoot.AddSubNode(new List<string>(commandWords), c.Methods[0], c.Instance);
+                _commandRoot.AddSubNode(new List<string>(commandWords), c);
             }
         }
 

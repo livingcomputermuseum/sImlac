@@ -297,6 +297,13 @@ namespace imlac.Debugger
             {
                 changed = _input.Trim().ToLower() != matchString.Trim().ToLower();
 
+                // Add a space if the output is different than the input (in which case a completion
+                // actually took place.
+                if (changed)
+                {
+                    matchString += " ";
+                }   
+
                 _input = matchString;
                 TextPosition = _input.Length;
             }
@@ -323,6 +330,7 @@ namespace imlac.Debugger
             }
 
             DebuggerCommand match = null;
+            bool exactMatch = false;
 
             // Search for exact matches.  If we find one it's guaranteed to be unique
             // so we can follow that node.
@@ -331,6 +339,7 @@ namespace imlac.Debugger
                 if (c.Name.ToLower() == tokens[0].ToLower())
                 {
                     match = c;
+                    exactMatch = true;
                     break;
                 }
             }
@@ -394,7 +403,7 @@ namespace imlac.Debugger
                 {
                     subMatch = FuzzyMatch(match, tokens, silent);
                 }
-                else // if (exactMatch)
+                else
                 {
                     if (!silent && match.SubCommands.Count > 1)
                     {
@@ -422,11 +431,27 @@ namespace imlac.Debugger
 
                         return sb.ToString();
                     }
+                    else if (!silent && 
+                              match.SubCommands.Count == 0 && 
+                              exactMatch)
+                    {
+                        // No more completions; this was an exact match, so 
+                        // instead print the help for this command if any
+                        // is available.
+                        Console.WriteLine();
+                        Console.WriteLine(match.Description);
+
+                        if (!String.IsNullOrWhiteSpace(match.Usage))
+                        {
+                            Console.WriteLine("Parameters: {0}", match.Usage);
+                        }
+                        
+                    }
                 }
 
                 if (subMatch == String.Empty)
                 {
-                    return String.Format("{0} ", match.Name);
+                    return String.Format("{0}", match.Name);
                 }
                 else
                 {

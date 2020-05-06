@@ -406,7 +406,11 @@ namespace imlac
                     // accurate with respect to timing.  (Ok, it's not accurate at all.)
                     // TODO: refactor Immediate halfword routines here (share w/short vectors?)
                     _camWord = _mem.Fetch(++_pc);
-                    _camHalf = ImmediateHalf.First;                    
+                    _camHalf = ImmediateHalf.First;
+
+                    // Update the instruction cache with the type of instruction (to aid in debugging).
+                    PDS4DisplayInstruction dbgInst = GetCachedInstruction(_pc, DisplayProcessorMode.CompactAddressing);
+
                     if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "Enter Compact Addressing mode, base address {0}",
                         Helpers.ToOctal(_caBase));
 
@@ -736,6 +740,10 @@ namespace imlac
                     case DisplayProcessorMode.Processor:
                         return DisassembleProcessor(mem, out length);
 
+                    case DisplayProcessorMode.CompactAddressing:
+                        length = 1;
+                        return DisassembleCompactAddressing();
+
                     case DisplayProcessorMode.Indeterminate:
                         length = 1;
                         return "Indeterminate";
@@ -916,6 +924,13 @@ namespace imlac
                 // TODO: eventually actually precache movement calculations.
             }
 
+            private string DisassembleCompactAddressing()
+            {
+                return String.Format("DCAM {0},{1}", 
+                    Helpers.ToOctal((ushort)(_word >> 8)), 
+                    Helpers.ToOctal((ushort)(_word & 0xff)));
+            }
+
             protected override string DisassembleExtended(Memory mem, out int length)
             {
                 string ret = String.Empty;
@@ -923,7 +938,7 @@ namespace imlac
                 {
                     case DisplayOpcode.DLVH:
                         length = 2;
-                        ret = DecodeLongVector(mem);
+                        ret = DisassembleLongVector(mem);
                         break;
 
                     default:
@@ -936,7 +951,7 @@ namespace imlac
                 return ret;
             }
 
-            private string DecodeLongVector(Memory mem)
+            private string DisassembleLongVector(Memory mem)
             {
                 //
                 // A Long Vector instruction is 3 words long:

@@ -573,6 +573,7 @@ namespace imlac
             Processor,
             DisplayProcessor,
             DisplayIncrement,
+            DisplayCompact,
             DisplayAuto
         }
         
@@ -692,6 +693,10 @@ namespace imlac
 
                         case DisassemblyMode.DisplayIncrement:
                             disassembly = DisplayProcessor.Disassemble(address, DisplayProcessorMode.Increment, out size);
+                            break;
+
+                        case DisassemblyMode.DisplayCompact:
+                            disassembly = DisplayProcessor.Disassemble(address, DisplayProcessorMode.CompactAddressing, out size);
                             break;
                     }
                 }

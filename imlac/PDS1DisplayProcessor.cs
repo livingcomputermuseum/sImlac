@@ -726,7 +726,7 @@ namespace imlac
                 {
                     case DisplayOpcode.DLVH:
                         length = 3;
-                        ret = DecodeLongVector(mem);
+                        ret = DisassembleLongVector(mem);
                         break;
 
                     default:
@@ -739,7 +739,7 @@ namespace imlac
                 return ret;
             }
 
-            private string DecodeLongVector(Memory mem)
+            private string DisassembleLongVector(Memory mem)
             {
                 //
                 // A Long Vector instruction is 3 words long:
