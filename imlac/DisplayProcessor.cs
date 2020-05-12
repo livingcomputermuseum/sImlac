@@ -164,9 +164,27 @@ namespace imlac
             }
         }
 
+        /// <summary>
+        /// Tracks the entry point to the display processor's current program
+        /// program.
+        /// </summary>
         public ushort DPCEntry
         {
             get { return _dpcEntry; }
+        }
+
+        /// <summary>
+        /// Set whenever a display drawing or movement operation has completed.
+        /// Reset on read.
+        /// </summary>
+        public bool DisplayDrawLatch
+        {
+            get
+            {
+                bool latch = _displayDrawLatch;
+                _displayDrawLatch = false;
+                return latch;
+            }
         }
 
         //
@@ -218,13 +236,28 @@ namespace imlac
 
         public abstract void ExecuteIOT(int iotCode);
 
+        protected void MoveAbsolute(int x, int y, DrawingMode mode)
+        {
+            _displayDrawLatch = true;
+            _system.Display.MoveAbsolute(x, y, mode);
+        }
+
+        protected void DrawPoint(int x, int y)
+        {
+            _displayDrawLatch = true;
+            _system.Display.DrawPoint(x, y);
+        }
+
         protected int _x;
         protected int _y;
         protected float _scale;
         protected ushort _pc;
         protected ushort _block;
         protected Stack<ushort> _dtStack;
+
+        // Used for debugging purposes:
         protected ushort _dpcEntry;
+        protected bool _displayDrawLatch;
 
         // MIT DADR (display addressing) flag.
         protected bool _dadr;

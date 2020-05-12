@@ -31,6 +31,7 @@ namespace imlac
         Halted,
         SingleStep,
         SingleFrame,
+        SingleDisplayOperation,
         UntilDisplayStart,
         Running,
         Quit
@@ -201,6 +202,13 @@ namespace imlac
         {
             Processor.State = ProcessorState.Running;
             return SystemExecutionState.UntilDisplayStart;
+        }
+
+        [DebuggerFunction("step display", "Runs until the end of the next display drawing or positioning ooperation")]
+        private SystemExecutionState RunDisplayOp()
+        {
+            Processor.State = ProcessorState.Running;
+            return SystemExecutionState.SingleDisplayOperation;
         }
 
         [DebuggerFunction("load bootstrap", "Loads the specified bootstrap into memory at 40", "<bootstrap>")]
@@ -532,6 +540,20 @@ namespace imlac
         private SystemExecutionState DisableSquiggleMode()
         {
             Configuration.SquiggleMode = false;
+            return SystemExecutionState.Debugging;
+        }
+
+        [DebuggerFunction("draw invisible vectors", "Displays non-drawing beam motion in red.")]
+        private SystemExecutionState ShowInvisibleVectors()
+        {
+            Configuration.ShowInvisibleVectors = true;
+            return SystemExecutionState.Debugging;
+        }
+
+        [DebuggerFunction("hide invisible vectors", "Hides non-drawing beam motion (the default).")]
+        private SystemExecutionState HideInvisibleVectors()
+        {
+            Configuration.ShowInvisibleVectors = false;
             return SystemExecutionState.Debugging;
         }
 

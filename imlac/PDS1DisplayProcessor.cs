@@ -191,39 +191,39 @@ namespace imlac
                         // HV Sync; this is currently a no-op, not much to do in emulation.
                         if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "HV Sync");
 
-                        _system.Display.MoveAbsolute(X, Y, DrawingMode.Off);
+                        MoveAbsolute(X, Y, DrawingMode.Off);
                     }
 
                     if ((instruction.Data & 0x200) != 0)
                     {
                         // DIXM -- increment X DAC MSB
                         X += 0x20;
-                        _system.Display.MoveAbsolute(X, Y, DrawingMode.Off);
-                        if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "DIXM, X is now {0}", X);
+                        MoveAbsolute(X, Y, DrawingMode.Off);
+                        if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "DIXM, X is now {0}", X);                        
                     }
 
                     if ((instruction.Data & 0x100) != 0)
                     {
                         // DIYM -- increment Y DAC MSB
                         Y += 0x20;
-                        _system.Display.MoveAbsolute(X, Y, DrawingMode.Off);
-                        if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "DIYM, Y is now {0}", Y);
+                        MoveAbsolute(X, Y, DrawingMode.Off);
+                        if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "DIYM, Y is now {0}", Y);                        
                     }
 
                     if ((instruction.Data & 0x80) != 0)
                     {
                         // DDXM - decrement X DAC MSB
                         X -= 0x20;
-                        _system.Display.MoveAbsolute(X, Y, DrawingMode.Off);
-                        if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "DDXM, X is now {0}", X);
+                        MoveAbsolute(X, Y, DrawingMode.Off);
+                        if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "DDXM, X is now {0}", X);                    
                     }
 
                     if ((instruction.Data & 0x40) != 0)
                     {
                         // DDYM - decrement y DAC MSB
                         Y -= 0x20;
-                        _system.Display.MoveAbsolute(X, Y, DrawingMode.Off);
-                        if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "DDYM, Y is now {0}", Y);
+                        MoveAbsolute(X, Y, DrawingMode.Off);
+                        if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "DDYM, Y is now {0}", Y);                    
                     }
 
                     if ((instruction.Data & 0x20) != 0)
@@ -237,9 +237,9 @@ namespace imlac
                     {
                         // DDSP -- intensify point on screen for 1.8us (one instruction)
                         // at the current position.
-                        _system.Display.DrawPoint(X, Y);
+                        DrawPoint(X, Y);
 
-                        if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "DDSP at {0},{1}", X, Y);
+                        if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "DDSP at {0},{1}", X, Y);                        
                     }
 
                     // F/C ops:
@@ -302,8 +302,8 @@ namespace imlac
                         if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "X set to {0}", X);
                     }
 
-                    _system.Display.MoveAbsolute(X, Y, mode);
-                    
+                    MoveAbsolute(X, Y, mode);                    
+
                     if (_sgrDJRMOn)
                     {
                         ReturnFromDisplaySubroutine();
@@ -328,7 +328,7 @@ namespace imlac
                         mode = DrawingMode.Off;
                     }
 
-                    _system.Display.MoveAbsolute(X, Y, mode);
+                    MoveAbsolute(X, Y, mode);                    
 
                     if (_sgrDJRMOn)
                     {
@@ -398,29 +398,29 @@ namespace imlac
                 if ((halfWord & 0x10) != 0)
                 {
                     newX += 0x20;
-                    if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "Increment X MSB, X is now {0}", X);
+                    if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "Increment X MSB, X is now {0}", X);                    
                 }
 
                 if ((halfWord & 0x08) != 0)
                 {
                     newX = newX & (0xffe0);
-                    if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "Reset X LSB, X is now {0}", X);
+                    if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "Reset X LSB, X is now {0}", X);                    
                 }
 
                 if ((halfWord & 0x02) != 0)
                 {
                     newY += 0x20;
-                    if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "Increment Y MSB, Y is now {0}", Y);
+                    if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "Increment Y MSB, Y is now {0}", Y);                    
                 }
 
                 if ((halfWord & 0x01) != 0)
                 {
                     newY = newY & (0xffe0);
-                    if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "Reset Y LSB, Y is now {0}", Y);
+                    if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "Reset Y LSB, Y is now {0}", Y);                    
                 }
                 
-                _system.Display.MoveAbsolute(newX, newY, DrawingMode.Off);
-                
+                MoveAbsolute(newX, newY, DrawingMode.Off);                
+
             }
             else
             {
@@ -443,7 +443,7 @@ namespace imlac
                 newX = (int)(newX + xSign * xMag * 2);
                 newY = (int)(newY + ySign * yMag * 2);
 
-                _system.Display.MoveAbsolute(newX, newY, (halfWord & 0x40) == 0 ? DrawingMode.Off : DrawingMode.Dotted);
+                MoveAbsolute(newX, newY, (halfWord & 0x40) == 0 ? DrawingMode.Off : DrawingMode.Dotted);                
 
                 MoveToNextHalfWord();
             }
@@ -527,7 +527,7 @@ namespace imlac
 
             if (Trace.TraceOn) Trace.Log(LogType.DisplayProcessor, "LongVector, move complete - x={0} y={1}", newX, newY, dx * dxSign, dy * dySign, beamOn, dotted);
 
-            _system.Display.MoveAbsolute(newX, newY, beamOn ? (dotted ? DrawingMode.Dotted : DrawingMode.Normal) : DrawingMode.Off);
+            MoveAbsolute(newX, newY, beamOn ? (dotted ? DrawingMode.Dotted : DrawingMode.Normal) : DrawingMode.Off);            
 
             // Assign back to X, Y registers; clipping into range.
             X = newX;

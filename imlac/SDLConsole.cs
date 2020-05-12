@@ -354,6 +354,10 @@ namespace imlac
             {
                 AddNewVector(mode, _x, _y, x, y);
             }
+            else if(Configuration.ShowInvisibleVectors)
+            {
+                AddNewVector(DrawingMode.Debug, _x, _y, x, y);
+            }
 
             _x = x;
             _y = y;
@@ -700,7 +704,7 @@ namespace imlac
                          (byte)(_color.B * _intensity),
                          _color.A);
 
-                    SDL.SDL_RenderDrawLine(sdlRenderer, _x1, _y1, _x2, _y2);                   
+                    SDL.SDL_RenderDrawLine(sdlRenderer, _x1, _y1, _x2, _y2);
                 }
             }
 
@@ -760,7 +764,7 @@ namespace imlac
             private static Color NormalColor = Color.FromArgb(255, Color.GreenYellow);
             private static Color PointColor = Color.FromArgb(255, Color.GreenYellow);
             private static Color SGRColor = Color.FromArgb(127, Color.DarkGreen);
-            private static Color DebugColor = Color.FromArgb(255, Color.OrangeRed);
+            private static Color DebugColor = Color.FromArgb(127, Color.Red);
 
             private static Random _rng;
         }

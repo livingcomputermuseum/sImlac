@@ -117,6 +117,17 @@ namespace imlac
                             }
                             break;
 
+                        case SystemExecutionState.SingleDisplayOperation:
+                            _imlacSystem.SingleStep();
+
+                            if (_imlacSystem.DisplayProcessor.DisplayDrawLatch)
+                            {
+                                _imlacSystem.Display.RenderCurrent(false);
+                                Console.WriteLine("Display operation completed.");
+                                _state = SystemExecutionState.Debugging;
+                            }
+                            break;
+
                         case SystemExecutionState.Running:
                             _imlacSystem.SingleStep();
 
@@ -156,6 +167,13 @@ namespace imlac
             Console.WriteLine("User break.");
             _state = SystemExecutionState.Debugging;
             e.Cancel = true;
+
+            // Flush console input.
+            while(Console.KeyAvailable)
+            {
+                Console.ReadKey();
+            }
+
         }
 
         private static void PrintHerald()

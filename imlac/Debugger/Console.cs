@@ -161,7 +161,9 @@ namespace imlac.Debugger
 
                 if (string.IsNullOrEmpty(command))
                 {
+                    // Repeat the last command
                     command = _lastCommand;
+                    Console.WriteLine(">> {0}", command);
                 }
 
                 next = ExecuteLine(command, system);

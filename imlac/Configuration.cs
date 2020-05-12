@@ -19,6 +19,7 @@ namespace imlac
             MITMode = false;
             CPUType = ImlacCPUType.PDS1;
             SquiggleMode = false;
+            ShowInvisibleVectors = false;
         }
         //
         // Static System configuration parameters
@@ -26,5 +27,6 @@ namespace imlac
         public static bool          MITMode;
         public static ImlacCPUType  CPUType;
         public static bool          SquiggleMode;
+        public static bool          ShowInvisibleVectors;
     }
 }

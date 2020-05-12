@@ -80,11 +80,13 @@ namespace imlac.IO.TTYChannels
             _tcpClient = new TcpClient(host, port);
             _tcpStream = _tcpClient.GetStream();
             _raw = raw;
+            _abort = false;
 
             _asyncBuffer = new byte[2048];
             _inputBuffer = new Queue<byte>();
 
             _bufferLock = new ReaderWriterLockSlim();
+            _streamLock = new ReaderWriterLockSlim();
 
             //
             // Kick off reading from the stream, asynchronously.
@@ -112,8 +114,11 @@ namespace imlac.IO.TTYChannels
 
         public void Close()
         {
+            _streamLock.EnterWriteLock();
+            _abort = true;
             _tcpStream.Close();
             _tcpClient.Close();
+            _streamLock.ExitWriteLock();
         }
 
         public byte ReadByte()
@@ -139,6 +144,13 @@ namespace imlac.IO.TTYChannels
 
         private void AsyncReadCallback(IAsyncResult ar)
         {
+            _streamLock.EnterReadLock();
+
+            if (_abort)
+            {
+                return;
+            }
+
             //
             // Process incoming data
             // TODO: The telnet processing is terrible.
@@ -184,6 +196,8 @@ namespace imlac.IO.TTYChannels
                 _asyncBuffer.Length,
                 new AsyncCallback(AsyncReadCallback),
                 null);
+
+            _streamLock.ExitReadLock();
         }
 
         private const byte IAC = 255;
@@ -199,7 +213,9 @@ namespace imlac.IO.TTYChannels
         private TcpClient _tcpClient;
         private NetworkStream _tcpStream;
         private bool _raw;
+        private bool _abort;
 
         private ReaderWriterLockSlim _bufferLock;
+        private ReaderWriterLockSlim _streamLock;
     }
 }
