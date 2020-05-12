@@ -166,7 +166,11 @@ namespace imlac
                     break;
 
                 default:
-                    throw new NotImplementedException(String.Format("Unimplemented Display IOT instruction {0:x4}", iotCode));
+                    Helpers.SignalError(
+                        LogType.DisplayProcessor, 
+                        "Unimplemented Display IOT instruction {0:x4}", 
+                        iotCode);
+                    break;
             }
         }
 
@@ -423,10 +427,13 @@ namespace imlac
                     break;
 
                 default:
-                    throw new NotImplementedException(String.Format("Unimplemented Display Processor Opcode {0}, ({1}), operands {1}", 
-                        instruction.Opcode, 
-                        Helpers.ToOctal((ushort)instruction.Opcode), 
-                        Helpers.ToOctal(instruction.Data)));
+                    Helpers.SignalError(
+                            LogType.DisplayProcessor, 
+                            "Unimplemented Display Processor Opcode {0}, ({1}), operands {1}", 
+                            instruction.Opcode, 
+                            Helpers.ToOctal((ushort)instruction.Opcode), 
+                            Helpers.ToOctal(instruction.Data));
+                    break;
             }
 
             // If the next instruction has a breakpoint set we'll halt at this point, before executing it.
@@ -860,7 +867,11 @@ namespace imlac
                         break;
 
                     default:
-                        throw new NotImplementedException(String.Format("Unhandled Display Processor Mode instruction {0}", Helpers.ToOctal(_word)));
+                        Helpers.SignalError(
+                            LogType.DisplayProcessor, 
+                            "Unhandled Display Processor Mode instruction {0}", 
+                            Helpers.ToOctal(_word));
+                        break;
                 }
             }
 
@@ -914,8 +925,11 @@ namespace imlac
                     _data = (ushort)(word & 0xff);
                 }
                 else
-                { 
-                    throw new NotImplementedException(String.Format("Unhandled extended Display Processor Mode instruction {0}", Helpers.ToOctal(word)));
+                {
+                    Helpers.SignalError(
+                        LogType.DisplayProcessor, 
+                        "Unhandled extended Display Processor Mode instruction {0}", 
+                        Helpers.ToOctal(word));
                 }
             }
 

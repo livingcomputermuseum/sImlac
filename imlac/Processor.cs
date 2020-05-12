@@ -1438,7 +1438,10 @@ namespace imlac
                                     {
                                         if (!DecodeOrder(word))
                                         {
-                                            throw new InvalidOperationException(String.Format("Unhandled instruction {0}", Helpers.ToOctal(word)));
+                                            Helpers.SignalError(
+                                                LogType.Processor,
+                                                "Unhandled instruction {0}", 
+                                                Helpers.ToOctal(word));
                                         }
                                     }
                                 }

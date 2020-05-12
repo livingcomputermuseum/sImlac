@@ -37,5 +37,17 @@ namespace imlac
             ushort value = Convert.ToUInt16(octal, 8);
             return value;
         }
+
+        public static void SignalError(LogType logtype, string format, params object[] args)
+        {
+            if (Configuration.HaltOnInvalidOpcodes)
+            {
+                throw new NotImplementedException(String.Format(format, args));
+            }
+            else
+            {
+                if (Trace.TraceOn) Trace.Log(logtype, format, args);
+            }
+        }
     }
 }

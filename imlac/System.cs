@@ -569,6 +569,20 @@ namespace imlac
             return SystemExecutionState.Debugging;
         }
 
+        [DebuggerFunction("halt on invalid instructions", "Halts emulation if an invalid instruction is encountered.")]
+        private SystemExecutionState HaltOnInvalidInstructions()
+        {
+            Configuration.HaltOnInvalidOpcodes = true;
+            return SystemExecutionState.Debugging;
+        }
+
+        [DebuggerFunction("continue on invalid instructions", "Continues emulation if an invalid instruction is encountered.")]
+        private SystemExecutionState ContinueOnInvalidInstructions()
+        {
+            Configuration.HaltOnInvalidOpcodes = false;
+            return SystemExecutionState.Debugging;
+        }
+
         private void AttachDisplayProcessor()
         {
             // Unregister current display processor
