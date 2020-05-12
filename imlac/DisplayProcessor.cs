@@ -282,6 +282,8 @@ namespace imlac
         /// </summary>
         protected enum DisplayOpcode
         {
+            Invalid,    // Set when an instruction could not be decoded.
+
             // Basic instructions
             DLXA,       // Load X Accumulator
             DLYA,       // Load Y Accumulator

@@ -354,6 +354,14 @@ namespace imlac
                     _pc++;
                     break;
 
+                case DisplayOpcode.Invalid:
+                    Helpers.SignalError(
+                        LogType.DisplayProcessor,
+                        "Execution of invalid display processor instruction {0}",
+                        Helpers.ToOctal(instruction.Data));
+                    _pc++;
+                    break;
+
                 default:
                     Helpers.SignalError(
                         LogType.DisplayProcessor,
@@ -683,6 +691,9 @@ namespace imlac
                             LogType.DisplayProcessor,
                             "Unhandled Display Processor Mode instruction {0}",
                             Helpers.ToOctal(_word));
+
+                        _opcode = DisplayOpcode.Invalid;
+                        _data = _word;
                         break;
                 }
             }
@@ -721,6 +732,9 @@ namespace imlac
                             LogType.DisplayProcessor, 
                             "Unhandled extended Display Processor Mode instruction {0}", 
                             Helpers.ToOctal(word));
+
+                        _opcode = DisplayOpcode.Invalid;
+                        _data = word;
                         break;
                 }
 
