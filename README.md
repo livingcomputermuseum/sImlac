@@ -1,4 +1,4 @@
-[![Build](https://github.com/ausil/sImlac/actions/workflows/build.yml/badge.svg)](https://github.com/ausil/sImlac/actions/workflows/build.yml)
+[![Build](https://github.com/livingcomputermuseum/sImlac/actions/workflows/build.yml/badge.svg)](https://github.com/livingcomputermuseum/sImlac/actions/workflows/build.yml)
 
 # sImlac
 
