@@ -35,8 +35,11 @@ namespace imlac.IO.TTYChannels
 
         public void Close()
         {
-            _telnetStream.Close();
-            _telnetStream = null;
+            if (_telnetStream != null)
+            {
+                _telnetStream.Close();
+                _telnetStream = null;
+            }
         }
 
         public byte Read()

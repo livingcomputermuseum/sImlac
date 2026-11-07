@@ -529,6 +529,20 @@ namespace imlac
             return SystemExecutionState.Debugging;
         }
 
+        [DebuggerFunction("enable case invert", "Swaps shifted/unshifted case for letter keys (for terminal programs that apply their own ITS-style case inversion).")]
+        private SystemExecutionState EnableCaseInvert()
+        {
+            Configuration.CaseInvert = true;
+            return SystemExecutionState.Debugging;
+        }
+
+        [DebuggerFunction("disable case invert", "Restores normal shifted/unshifted case for letter keys.")]
+        private SystemExecutionState DisableCaseInvert()
+        {
+            Configuration.CaseInvert = false;
+            return SystemExecutionState.Debugging;
+        }
+
         [DebuggerFunction("enable squiggle mode", "Turns vector perturbations on.")]
         private SystemExecutionState EnableSquiggleMode()
         {

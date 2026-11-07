@@ -178,7 +178,16 @@ namespace imlac.IO
 
             if (key != ImlacKey.Invalid)
             {
-                scanCode = (modifiers & ImlacKeyModifiers.Shift) != 0 ? _keyMappings[key].ShiftedCode : _keyMappings[key].NormalCode;
+                bool shiftHeld = (modifiers & ImlacKeyModifiers.Shift) != 0;
+
+                // CaseInvert swaps normal/shifted *only* for letter keys, to compensate for
+                // terminal programs (e.g. ssv) that apply their own ITS-style case inversion
+                // when talking to a case-sensitive (non-ITS) host.  Left off by default so
+                // real hardware behavior is preserved for ITS-targeted software.
+                bool isLetterKey = key >= ImlacKey.A && key <= ImlacKey.Z;
+                bool useShiftedCode = (isLetterKey && Configuration.CaseInvert) ? !shiftHeld : shiftHeld;
+
+                scanCode = useShiftedCode ? _keyMappings[key].ShiftedCode : _keyMappings[key].NormalCode;
 
                 if (scanCode == 0)
                 {

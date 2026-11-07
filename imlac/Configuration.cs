@@ -21,6 +21,7 @@ namespace imlac
             SquiggleMode = false;
             ShowInvisibleVectors = false;
             HaltOnInvalidOpcodes = true;
+            CaseInvert = false;
         }
         //
         // Static System configuration parameters
@@ -30,5 +31,6 @@ namespace imlac
         public static bool          SquiggleMode;
         public static bool          ShowInvisibleVectors;
         public static bool          HaltOnInvalidOpcodes;
+        public static bool          CaseInvert;
     }
 }
