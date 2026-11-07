@@ -41,6 +41,8 @@ namespace imlac
             // Start the debugger / execution thread
             //
             _debuggerThread = new System.Threading.Thread(new System.Threading.ThreadStart(DebuggerThread));
+            // Background thread so that the process exits when the display window is closed.
+            _debuggerThread.IsBackground = true;
             _debuggerThread.Start();
 
             //
@@ -49,9 +51,11 @@ namespace imlac
             _console.Show();
 
             //
-            // Kill the system if it's still running.
+            // Kill the system if it's still running.  (Thread.Abort is not supported
+            // on modern .NET; the debugger thread is a background thread and will be
+            // torn down when the process exits.)
             //
-            _debuggerThread.Abort();
+            Environment.Exit(0);
         }
 
         private static void DebuggerThread()

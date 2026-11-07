@@ -70,12 +70,7 @@ namespace imlac.IO
             _state = ReaderState.Stopped;
             _tapeIndex = 0;
 
-            FileStream fs = File.OpenRead(path);
-            _tapeContents = new byte[fs.Length];
-
-            fs.Read(_tapeContents, 0, (int)fs.Length);
-
-            fs.Close();
+            _tapeContents = File.ReadAllBytes(path);
         }
 
         public int[] GetHandledIOTs()

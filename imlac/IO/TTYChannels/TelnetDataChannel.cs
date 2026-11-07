@@ -35,8 +35,11 @@ namespace imlac.IO.TTYChannels
 
         public void Close()
         {
-            _telnetStream.Close();
-            _telnetStream = null;
+            if (_telnetStream != null)
+            {
+                _telnetStream.Close();
+                _telnetStream = null;
+            }
         }
 
         public byte Read()
@@ -85,9 +88,6 @@ namespace imlac.IO.TTYChannels
             _asyncBuffer = new byte[2048];
             _inputBuffer = new Queue<byte>();
 
-            _bufferLock = new ReaderWriterLockSlim();
-            _streamLock = new ReaderWriterLockSlim();
-
             //
             // Kick off reading from the stream, asynchronously.
             _tcpStream.BeginRead(
@@ -102,39 +102,29 @@ namespace imlac.IO.TTYChannels
         {
             get
             {
-                bool avail = false;
-                _bufferLock.EnterReadLock();
-                avail = _inputBuffer.Count > 0;
-                _bufferLock.ExitReadLock();
-
-                return avail;
+                lock (_bufferLock)
+                {
+                    return _inputBuffer.Count > 0;
+                }
             }
-
         }
 
         public void Close()
         {
-            _streamLock.EnterWriteLock();
-            _abort = true;
-            _tcpStream.Close();
-            _tcpClient.Close();
-            _streamLock.ExitWriteLock();
+            lock (_streamLock)
+            {
+                _abort = true;
+                _tcpStream.Close();
+                _tcpClient.Close();
+            }
         }
 
         public byte ReadByte()
         {
-            byte b = 0;
-            _bufferLock.EnterUpgradeableReadLock();
-            if (_inputBuffer.Count > 0)
+            lock (_bufferLock)
             {
-                _bufferLock.EnterWriteLock();
-                b = _inputBuffer.Dequeue();
-                _bufferLock.ExitWriteLock();
+                return _inputBuffer.Count > 0 ? _inputBuffer.Dequeue() : (byte)0;
             }
-
-            _bufferLock.ExitUpgradeableReadLock();
-
-            return b;
         }
 
         public void WriteByte(byte b)
@@ -144,60 +134,99 @@ namespace imlac.IO.TTYChannels
 
         private void AsyncReadCallback(IAsyncResult ar)
         {
-            _streamLock.EnterReadLock();
+            //
+            // Note: BeginRead may complete synchronously and invoke this callback
+            // on the same thread, so no locks may be held when calling it.
+            //
+            int bytesRead;
 
-            if (_abort)
+            lock (_streamLock)
             {
+                if (_abort)
+                {
+                    return;
+                }
+
+                try
+                {
+                    bytesRead = _tcpStream.EndRead(ar);
+                }
+                catch (Exception)
+                {
+                    // Connection closed or failed; stop reading.
+                    return;
+                }
+            }
+
+            if (bytesRead == 0)
+            {
+                // Remote end closed the connection.
                 return;
             }
 
             //
             // Process incoming data
             // TODO: The telnet processing is terrible.
-            //            
-            int bytesRead = _tcpStream.EndRead(ar);
-
-            for (int i = 0; i < bytesRead; )
+            //
+            lock (_bufferLock)
             {
-                byte b = _asyncBuffer[i++];
-                
-                if (!_raw && b == IAC)
+                for (int i = 0; i < bytesRead; )
                 {
-                    // For now we just eat all option requests.
-                    b = _asyncBuffer[i++];
+                    byte b = _asyncBuffer[i++];
 
-                    switch(b)
+                    if (!_raw && b == IAC)
                     {
-                        case WILL:
-                        case WONT:
-                        case DO:
-                        case DONT:
-                            i++;
+                        if (i >= bytesRead)
+                        {
                             break;
+                        }
 
-                        default:
-                            break;
+                        // For now we just eat all option requests.
+                        b = _asyncBuffer[i++];
+
+                        switch (b)
+                        {
+                            case WILL:
+                            case WONT:
+                            case DO:
+                            case DONT:
+                                i++;
+                                break;
+
+                            default:
+                                break;
+                        }
                     }
-                }
-                else 
-                {
-                    _bufferLock.EnterWriteLock();
-                    _inputBuffer.Enqueue(b);
-                    _bufferLock.ExitWriteLock();
+                    else
+                    {
+                        _inputBuffer.Enqueue(b);
+                    }
                 }
             }
 
             //
             // And start the next read
-            //            
-            _tcpStream.BeginRead(
-                _asyncBuffer,
-                0,
-                _asyncBuffer.Length,
-                new AsyncCallback(AsyncReadCallback),
-                null);
+            //
+            lock (_streamLock)
+            {
+                if (_abort)
+                {
+                    return;
+                }
 
-            _streamLock.ExitReadLock();
+                try
+                {
+                    _tcpStream.BeginRead(
+                        _asyncBuffer,
+                        0,
+                        _asyncBuffer.Length,
+                        new AsyncCallback(AsyncReadCallback),
+                        null);
+                }
+                catch (Exception)
+                {
+                }
+            }
         }
 
         private const byte IAC = 255;
@@ -215,7 +244,7 @@ namespace imlac.IO.TTYChannels
         private bool _raw;
         private bool _abort;
 
-        private ReaderWriterLockSlim _bufferLock;
-        private ReaderWriterLockSlim _streamLock;
+        private readonly object _bufferLock = new object();
+        private readonly object _streamLock = new object();
     }
 }

@@ -1,8 +1,0 @@
-platform:
-  - x86
-install:
-  - nuget restore
-build:
-  project: imlac.sln
-artifacts:
-  - path: imlac/bin

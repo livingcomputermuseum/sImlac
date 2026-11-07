@@ -17,49 +17,25 @@
 
 using System;
 using System.Runtime.InteropServices;
-using System.ComponentModel;
+using System.Diagnostics;
 using System.Threading;
 
 namespace imlac
 {
-	/// <summary>
-	/// HighResTimer gives us access to NT's very-high-resolution PerformanceCounters.
-	/// This gives us the precision we need to sync emulation to any speed we desire.
-	/// </summary>
+    /// <summary>
+    /// HighResTimer gives us access to the platform's high-resolution performance counter.
+    /// This gives us the precision we need to sync emulation to any speed we desire.
+    /// </summary>
     public sealed class HighResTimer
-	{
-		[DllImport("Kernel32.dll")]
-		private static extern bool QueryPerformanceCounter(
-			out long lpPerformanceCount);
-
-		[DllImport("Kernel32.dll")]
-		private static extern bool QueryPerformanceFrequency(
-			out long lpFrequency);		
-
-		public HighResTimer()
-		{
-			//What's the frequency, Kenneth?
-			if (QueryPerformanceFrequency(out _frequency) == false)
-			{
-				// high-performance counter not supported
-				throw new Win32Exception();
-			}
-		}
-
-		/// <summary>
-		/// Returns the current time in seconds.
-		/// </summary>
-		/// <returns></returns>
-		public double GetCurrentTime()
-		{
-			long currentTime;
-			QueryPerformanceCounter(out currentTime);
-
-			return (double)(currentTime) / (double)_frequency;
-		}
-
-        private long	_frequency;
-	}
+    {
+        /// <summary>
+        /// Returns the current time in seconds.
+        /// </summary>
+        public double GetCurrentTime()
+        {
+            return (double)Stopwatch.GetTimestamp() / (double)Stopwatch.Frequency;
+        }
+    }
 
     public sealed class FrameTimer
     {
@@ -109,7 +85,19 @@ namespace imlac
         /// </summary>
         /// <param name="framesPerSecond">The frame rate to sync to.</param>
         public FrameTimer(double framesPerSecond)
-        {          
+        {
+            if (!OperatingSystem.IsWindows())
+            {
+                //
+                // Non-Windows platforms: use a Stopwatch-based scheduler.
+                // Sleep resolution on Linux/macOS is fine-grained enough that
+                // we can sleep most of the way and spin for the remainder.
+                //
+                _portable = true;
+                _framePeriodTicks = (long)(Stopwatch.Frequency / framesPerSecond);
+                _nextFrameTicks = Stopwatch.GetTimestamp() + _framePeriodTicks;
+                return;
+            }
             //
             // Set the timer to the minimum value (1ms).  This should be supported on any modern x86 system.
             // If not, too bad...
@@ -155,6 +143,11 @@ namespace imlac
 
         ~FrameTimer()
         {
+            if (_portable)
+            {
+                return;
+            }
+
             try
             {
                 //
@@ -179,8 +172,44 @@ namespace imlac
         /// Waits for the timer to fire.
         /// </summary>
         public void WaitForFrame()
-        {            
-            _event.WaitOne();
+        {
+            if (_portable)
+            {
+                WaitForFramePortable();
+            }
+            else
+            {
+                _event.WaitOne();
+            }
+        }
+
+        private void WaitForFramePortable()
+        {
+            long now = Stopwatch.GetTimestamp();
+            long remaining = _nextFrameTicks - now;
+
+            if (remaining > 0)
+            {
+                // Sleep until ~1ms before the deadline, then spin.
+                long sleepMs = (remaining * 1000 / Stopwatch.Frequency) - 1;
+                if (sleepMs > 0)
+                {
+                    Thread.Sleep((int)sleepMs);
+                }
+
+                while (Stopwatch.GetTimestamp() < _nextFrameTicks)
+                {
+                    Thread.SpinWait(50);
+                }
+
+                _nextFrameTicks += _framePeriodTicks;
+            }
+            else
+            {
+                // We fell behind by more than a frame; resynchronize rather than
+                // trying to catch up with a burst of frames.
+                _nextFrameTicks = now + _framePeriodTicks;
+            }
         }
 
         /// <summary>
@@ -203,6 +232,10 @@ namespace imlac
             }
         }       
         
+        private bool _portable;
+        private long _framePeriodTicks;
+        private long _nextFrameTicks;
+
         private IntPtr _hTimerQueue;        
         private IntPtr _hTimer;        
         private AutoResetEvent _event;
