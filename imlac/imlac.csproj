@@ -1,118 +1,31 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project Sdk="Microsoft.NET.Sdk">
+
   <PropertyGroup>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">x86</Platform>
-    <ProductVersion>8.0.30703</ProductVersion>
-    <SchemaVersion>2.0</SchemaVersion>
-    <ProjectGuid>{EBD26AE3-7570-45C7-85FD-7AE8DB0112AB}</ProjectGuid>
     <OutputType>Exe</OutputType>
-    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <TargetFramework>net10.0</TargetFramework>
+    <!-- Allow running on newer .NET runtimes when net10.0 isn't installed. -->
+    <RollForward>Major</RollForward>
     <RootNamespace>imlac</RootNamespace>
     <AssemblyName>sImlac</AssemblyName>
-    <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
-    <TargetFrameworkProfile>
-    </TargetFrameworkProfile>
-    <FileAlignment>512</FileAlignment>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|x86' ">
-    <PlatformTarget>x86</PlatformTarget>
-    <DebugSymbols>true</DebugSymbols>
-    <DebugType>full</DebugType>
-    <Optimize>false</Optimize>
-    <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|x86' ">
-    <PlatformTarget>x86</PlatformTarget>
-    <DebugType>pdbonly</DebugType>
-    <Optimize>true</Optimize>
-    <OutputPath>bin\Release\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-  </PropertyGroup>
-  <PropertyGroup>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <RuntimeIdentifiers>linux-x64;linux-arm64;win-x64</RuntimeIdentifiers>
   </PropertyGroup>
+
   <ItemGroup>
-    <Reference Include="SDL2-CS, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\SDL2-CS.dll.2.0.0.0\lib\net20\SDL2-CS.dll</HintPath>
-    </Reference>
-    <Reference Include="System" />
-    <Reference Include="System.Core" />
-    <Reference Include="System.Drawing" />
-    <Reference Include="System.Windows.Forms" />
-    <Reference Include="Microsoft.CSharp" />
-    <Reference Include="System.Data" />
+    <!-- SDL2 bindings; bundles native SDL2 for win-x64/x86, linux-x64 and macOS.
+         On other platforms (e.g. linux-arm64) the system libSDL2 is used. -->
+    <PackageReference Include="ppy.SDL2-CS" Version="1.0.82" />
+    <PackageReference Include="System.IO.Ports" Version="10.0.0" />
   </ItemGroup>
+
   <ItemGroup>
-    <Compile Include="Configuration.cs" />
-    <Compile Include="Debugger\BreakpointManager.cs" />
-    <Compile Include="Debugger\Console.cs" />
-    <Compile Include="Debugger\DebuggerAttributes.cs" />
-    <Compile Include="Debugger\DebuggerPrompt.cs" />
-    <Compile Include="PDS4DisplayProcessor.cs" />
-    <Compile Include="PDS1DisplayProcessor.cs" />
-    <Compile Include="HighResTimer.cs" />
-    <Compile Include="IO\TTYChannels\NullDataChannel.cs" />
-    <Compile Include="IO\TTYChannels\SerialDataChannel.cs" />
-    <Compile Include="IO\TTYChannels\StreamDataChannel.cs" />
-    <Compile Include="IO\TTYChannels\ISerialDataChannel.cs" />
-    <Compile Include="IO\TTYChannels\TelnetDataChannel.cs" />
-    <Compile Include="SDLConsole.cs" />
-    <Compile Include="DisplayProcessor.cs" />
-    <Compile Include="Helpers.cs" />
-    <Compile Include="IImlacConsole.cs" />
-    <Compile Include="IO\IIOTDevice.cs" />
-    <Compile Include="IO\InterruptFacility.cs" />
-    <Compile Include="IO\Keyboard.cs" />
-    <Compile Include="IO\PaperTapeReader.cs" />
-    <Compile Include="IO\Clock.cs" />
-    <Compile Include="IO\TTY.cs" />
-    <Compile Include="Paths.cs" />
-    <Compile Include="Processor.cs" />
-    <Compile Include="Memory.cs" />
-    <Compile Include="EntryPoint.cs" />
-    <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="System.cs" />
-    <Compile Include="Trace.cs" />
+    <None Update="boot\*" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="notes\readme.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="notes\software.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
-  <ItemGroup>
-    <Content Include="notes\ptr bootstrap disassembly.txt" />
-    <Content Include="notes\PDS-1D bootstrap.txt" />
-    <Content Include="notes\readme.txt">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="notes\software.txt">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="app.config" />
-    <None Include="app.manifest" />
-    <None Include="boot\mtty">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="boot\ptr">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="boot\stty">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="boot\tty">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="packages.config" />
-  </ItemGroup>
-  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
-       Other similar extension points exist, see Microsoft.Common.targets.
-  <Target Name="BeforeBuild">
-  </Target>
-  <Target Name="AfterBuild">
-  </Target>
-  -->
+
 </Project>

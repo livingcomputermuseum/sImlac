@@ -17,7 +17,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Windows.Forms;
 using System.Drawing;
 using System.Threading;
 
@@ -42,6 +41,28 @@ namespace imlac
     {
         [DllImport("user32.dll", SetLastError = true)]
         static extern bool SetProcessDPIAware();
+
+        static SDLConsole()
+        {
+            //
+            // The SDL2 bindings import "SDL2".  On Linux the unversioned libSDL2.so is often
+            // only installed with development packages, so fall back to the versioned runtime
+            // library name if the default lookup fails.
+            //
+            NativeLibrary.SetDllImportResolver(typeof(SDL).Assembly, (name, assembly, searchPath) =>
+            {
+                if (name == "SDL2" && OperatingSystem.IsLinux())
+                {
+                    if (NativeLibrary.TryLoad("libSDL2-2.0.so.0", assembly, searchPath, out IntPtr handle) ||
+                        NativeLibrary.TryLoad("libSDL2.so", assembly, searchPath, out handle))
+                    {
+                        return handle;
+                    }
+                }
+
+                return IntPtr.Zero;
+            });
+        }
 
         public SDLConsole(float scaleFactor)
         {
@@ -228,14 +249,17 @@ namespace imlac
 
         private void InitializeSDL()
         {
-            try
+            if (OperatingSystem.IsWindows())
             {
-                // Set high DPI awareness on Windows platforms, if this fails it's OK.
-                SetProcessDPIAware();
-            }
-            catch
-            {
-                // Nothing to do.
+                try
+                {
+                    // Set high DPI awareness on Windows platforms, if this fails it's OK.
+                    SetProcessDPIAware();
+                }
+                catch
+                {
+                    // Nothing to do.
+                }
             }
 
             DoUpdateDisplayScale();

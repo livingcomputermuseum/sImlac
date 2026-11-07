@@ -15,6 +15,7 @@
     along with sImlac.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+using System;
 using System.IO;
 
 namespace imlac
@@ -29,7 +30,11 @@ namespace imlac
             return Path.Combine(_boot, file);
         }
 
-        private static string _boot = "boot";
+        // Look for boot files next to the executable first (so the emulator can be
+        // started from any working directory), falling back to the current directory.
+        private static string _boot =
+            Directory.Exists(Path.Combine(AppContext.BaseDirectory, "boot")) ?
+                Path.Combine(AppContext.BaseDirectory, "boot") : "boot";
 
     }
 }
